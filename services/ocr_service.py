@@ -94,10 +94,10 @@ def _extract_pdf_text(filepath: str) -> str:
 def _preprocess_for_ocr(filepath: str) -> Image.Image:
     """Preprocesa la imagen para maximizar la precisión del OCR."""
     try:
-        import pillow_heif
+        import pillow_heif  # type: ignore
         pillow_heif.register_heif_opener()
-    except ImportError:
-        pass
+    except Exception:
+        pass  # HEIC no disponible, se intenta abrir igual con Pillow
 
     img = Image.open(filepath).convert("RGB")
     img = img.convert("L")  # escala de grises

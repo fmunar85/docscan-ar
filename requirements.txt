@@ -2,23 +2,23 @@ flask==3.0.3
 python-dotenv==1.0.1
 gunicorn==22.0.0
 
-# Google Sheets
+# Google Sheets (requerido)
 gspread==6.1.2
 google-auth==2.29.0
 
-# Google Cloud Vision API (OCR alternativo, opcional)
-google-cloud-vision==3.7.2
-
-# OpenAI GPT-4o Vision (OCR de máxima precisión, opcional)
-openai==1.30.1
-
-# PDF
+# PDF (requerido)
 pdfplumber==0.11.0
 
-# Imágenes y OCR local (SIN necesidad de APIs externas)
+# Imágenes y OCR local sin APIs externas (requerido)
 Pillow==10.3.0
-pillow-heif==0.16.0
 pytesseract==0.3.13
+
+# HEIC/HEIF desde iPhone (opcional, puede fallar en algunos entornos)
+pillow-heif==0.16.0
+
+# APIs opcionales — descomenta si las usás:
+# openai==1.30.1
+# google-cloud-vision==3.7.2
 
 # Seguridad
 Werkzeug==3.0.3
