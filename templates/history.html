@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}Historial – DocScan AR{% endblock %}
+
+{% block content %}
+
+<!-- Selector de hojas -->
+<div class="d-flex gap-2 mb-3">
+  <a href="/history?type=FACTURA"
+     class="btn flex-fill {{ 'btn-primary' if doc_type == 'FACTURA' else 'btn-outline-primary' }}">
+    🧾 Facturas
+  </a>
+  <a href="/history?type=REMITO"
+     class="btn flex-fill {{ 'btn-success' if doc_type == 'REMITO' else 'btn-outline-success' }}">
+    📦 Remitos
+  </a>
+  <a href="/history?type=TICKET"
+     class="btn flex-fill {{ 'btn-warning text-dark' if doc_type == 'TICKET' else 'btn-outline-warning' }}">
+    🎫 Tickets
+  </a>
+</div>
+
+<!-- Lista de registros -->
+{% if records %}
+  {% for rec in records %}
+    <div class="ds-card mb-2">
+      <div class="ds-card-body py-3">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            {% if doc_type == 'FACTURA' %}
+              <div class="fw-600">{{ rec.get('Proveedor', '—') }}</div>
+              <div class="text-muted small">
+                Nº {{ rec.get('Número', '—') }} &nbsp;·&nbsp; {{ rec.get('Fecha Doc.', '') }}
+              </div>
+              {% if rec.get('CUIT') %}
+                <div class="text-muted small">CUIT: {{ rec.get('CUIT') }}</div>
+              {% endif %}
+            {% elif doc_type == 'REMITO' %}
+              <div class="fw-600">{{ rec.get('Proveedor', '—') }}</div>
+              <div class="text-muted small">
+                Nº {{ rec.get('Número', '—') }} &nbsp;·&nbsp; {{ rec.get('Fecha Doc.', '') }}
+              </div>
+              {% if rec.get('Destinatario') %}
+                <div class="text-muted small">→ {{ rec.get('Destinatario') }}</div>
+              {% endif %}
+            {% else %}
+              <div class="fw-600">{{ rec.get('Comercio', rec.get('Concepto', '—')) }}</div>
+              <div class="text-muted small">{{ rec.get('Fecha Doc.', '') }}</div>
+              <span class="badge bg-warning text-dark small">{{ rec.get('Categoría', '') }}</span>
+            {% endif %}
+          </div>
+          <div class="text-end ms-2">
+            {% set importe = rec.get('Total', rec.get('Monto', '')) %}
+            {% if importe %}
+              <div class="fw-600 text-primary">$ {{ importe }}</div>
+            {% endif %}
+            <div class="text-muted" style="font-size:0.7rem">{{ rec.get('Fecha Registro', '') }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+{% else %}
+  <div class="text-center py-5">
+    <div style="font-size:3.5rem">📭</div>
+    <p class="text-muted mt-3">No hay registros en <strong>{{ doc_type }}</strong> todavía.</p>
+  </div>
+{% endif %}
+
+<a href="/" class="btn btn-primary w-100 mt-2">
+  <i class="fas fa-plus me-2"></i>Cargar nuevo documento
+</a>
+
+{% endblock %}

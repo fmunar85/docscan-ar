@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block title %}DocScan AR – Cargar Documento{% endblock %}
+
+{% block content %}
+
+<!-- ═══════════════════════════════════════════════════════════
+     PASO 1 — Seleccionar tipo + subir imagen
+     ═══════════════════════════════════════════════════════════ -->
+<div id="viewUpload">
+
+  <!-- Indicador de pasos -->
+  <div class="ds-steps">
+    <div class="ds-step active" id="stp1"></div>
+    <div class="ds-step" id="stp2"></div>
+    <div class="ds-step" id="stp3"></div>
+  </div>
+
+  <!-- ── Tipo de documento ────────────────────────────── -->
+  <div class="ds-card">
+    <div class="ds-card-header">
+      <i class="fas fa-tag me-2"></i>1 · Tipo de documento
+    </div>
+    <div class="ds-card-body">
+      <div class="doc-grid">
+        <button class="doc-btn active" data-type="FACTURA" onclick="selectType(this)">
+          <span class="doc-icon">🧾</span>
+          <span class="doc-label">Factura</span>
+        </button>
+        <button class="doc-btn" data-type="REMITO" onclick="selectType(this)">
+          <span class="doc-icon">📦</span>
+          <span class="doc-label">Remito</span>
+        </button>
+        <button class="doc-btn" data-type="TICKET" onclick="selectType(this)">
+          <span class="doc-icon">🎫</span>
+          <span class="doc-label">Ticket</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Subir imagen / PDF ───────────────────────────── -->
+  <div class="ds-card">
+    <div class="ds-card-header">
+      <i class="fas fa-camera me-2"></i>2 · Imagen o PDF
+    </div>
+    <div class="ds-card-body">
+
+      <!-- Zona de arrastrar / tocar -->
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-placeholder" id="uploadPlaceholder">
+          <i class="fas fa-cloud-upload-alt upload-ico"></i>
+          <p class="fw-600 mb-1">Tocá para subir</p>
+          <p class="text-muted small mb-0">JPG · PNG · PDF · WEBP · HEIC</p>
+          <p class="text-muted small">Máximo 20 MB</p>
+        </div>
+        <div id="uploadPreview" class="d-none w-100 text-center">
+          <!-- Se rellena por JS -->
+        </div>
+      </div>
+
+      <!-- Inputs ocultos -->
+      <input type="file" id="fileInput"    accept="image/*,application/pdf"  class="d-none" onchange="handleFile(this.files[0])" />
+      <input type="file" id="cameraInput"  accept="image/*" capture="environment" class="d-none" onchange="handleFile(this.files[0])" />
+      <input type="file" id="galleryInput" accept="image/*,application/pdf"  class="d-none" onchange="handleFile(this.files[0])" />
+
+      <!-- Botones acción móvil -->
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-outline-primary flex-fill" onclick="openCamera()">
+          <i class="fas fa-camera me-2"></i>Cámara
+        </button>
+        <button class="btn btn-outline-secondary flex-fill" onclick="openGallery()">
+          <i class="fas fa-images me-2"></i>Galería / Archivo
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Botón analizar ───────────────────────────────── -->
+  <button class="btn btn-primary btn-lg w-100 mt-1" id="btnAnalizar"
+          disabled onclick="submitDocument()">
+    <i class="fas fa-magic me-2"></i>3 · Analizar con IA
+  </button>
+
+</div><!-- /viewUpload -->
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     PASO 2 — Formulario de revisión / edición
+     ═══════════════════════════════════════════════════════════ -->
+<div id="viewResult" class="d-none"></div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     PASO 3 — Éxito
+     ═══════════════════════════════════════════════════════════ -->
+<div id="viewSuccess" class="d-none">
+  <div class="text-center py-5 ds-fade-in">
+    <div style="font-size:4.5rem">✅</div>
+    <h4 class="text-success mt-3 mb-1">¡Guardado!</h4>
+    <p class="text-muted" id="successMsg">Los datos se registraron en Google Sheets.</p>
+    <div class="d-grid gap-2 mt-4">
+      <button class="btn btn-primary btn-lg" onclick="resetApp()">
+        <i class="fas fa-plus me-2"></i>Cargar otro documento
+      </button>
+      <a id="historyLink" href="/history" class="btn btn-outline-secondary btn-lg">
+        <i class="fas fa-list me-2"></i>Ver historial
+      </a>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     Overlay de carga
+     ═══════════════════════════════════════════════════════════ -->
+<div id="loadingOverlay" class="ds-loading d-none">
+  <div class="text-center">
+    <div class="spinner-border text-primary mb-3" style="width:3.2rem;height:3.2rem"></div>
+    <h5 id="loadingTitle">Procesando…</h5>
+    <p class="text-muted small" id="loadingSubtitle">Por favor esperá</p>
+  </div>
+</div>
+
+{% endblock %}

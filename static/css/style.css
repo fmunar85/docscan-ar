@@ -1,0 +1,266 @@
+/* ══════════════════════════════════════════════════════════
+   DocScan AR — Mobile-first stylesheet
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Variables ────────────────────────────────────────────── */
+:root {
+  --primary:       #1565C0;
+  --primary-light: #1976D2;
+  --primary-dark:  #0D47A1;
+  --success:       #2E7D32;
+  --warning:       #F57F17;
+  --danger:        #C62828;
+  --surface:       #ffffff;
+  --surface-2:     #F3F6FF;
+  --border:        #D0D9F0;
+  --text:          #1A1A2E;
+  --text-muted:    #606880;
+  --nav-h:         58px;
+  --radius:        14px;
+  --shadow:        0 2px 12px rgba(21,101,192,.10);
+}
+
+/* ── Reset / base ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--surface-2);
+  color: var(--text);
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Evitar zoom en inputs iOS */
+input, select, textarea { font-size: 16px !important; }
+
+/* ── Navbar ───────────────────────────────────────────────── */
+.ds-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  height: var(--nav-h);
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  box-shadow: 0 2px 8px rgba(0,0,0,.20);
+}
+
+.ds-nav-logo  { font-size: 1.5rem; line-height: 1; }
+.ds-nav-title { font-weight: 700; color: #fff; font-size: 1.1rem; letter-spacing: .01em; }
+.ds-nav-btn   {
+  display: flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  color: rgba(255,255,255,.85);
+  text-decoration: none;
+  background: rgba(255,255,255,.12);
+  transition: background .2s;
+}
+.ds-nav-btn:hover { background: rgba(255,255,255,.22); color: #fff; }
+
+/* ── Layout principal ─────────────────────────────────────── */
+.ds-main {
+  max-width: 540px;
+  margin: 0 auto;
+  padding: 16px 14px calc(env(safe-area-inset-bottom) + 20px);
+  min-height: calc(100vh - var(--nav-h));
+}
+
+/* ── Cards ────────────────────────────────────────────────── */
+.ds-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.ds-card-header {
+  background: var(--primary);
+  color: #fff;
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: .92rem;
+  letter-spacing: .02em;
+}
+
+.ds-card-body { padding: 16px; }
+
+/* ── Selector tipo de documento ───────────────────────────── */
+.doc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.doc-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px 12px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: .82rem;
+  cursor: pointer;
+  transition: all .18s ease;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.doc-btn:active { transform: scale(.96); }
+.doc-icon { font-size: 1.9rem; line-height: 1; }
+.doc-label { line-height: 1.1; }
+
+.doc-btn.active {
+  border-color: var(--primary);
+  background: rgba(21,101,192,.08);
+  color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(21,101,192,.12);
+}
+
+/* ── Zona de upload ───────────────────────────────────────── */
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 28px 16px;
+  text-align: center;
+  cursor: pointer;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all .25s ease;
+  background: var(--surface-2);
+}
+.upload-zone:active, .upload-zone.drag-over {
+  border-color: var(--primary);
+  background: rgba(21,101,192,.05);
+  transform: scale(.99);
+}
+.upload-ico {
+  font-size: 3rem;
+  color: var(--primary);
+  margin-bottom: 10px;
+  display: block;
+}
+.upload-preview-img {
+  max-width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.12);
+}
+
+/* ── Botones ──────────────────────────────────────────────── */
+.btn {
+  border-radius: 10px;
+  font-weight: 500;
+  transition: all .15s ease;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.btn-lg { padding: 14px 20px; font-size: 1rem; }
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--primary); border-color: var(--primary); }
+.btn-primary:hover, .btn-primary:focus { background: var(--primary-light); border-color: var(--primary-light); }
+
+/* ── Indicador de pasos ───────────────────────────────────── */
+.ds-steps {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.ds-step {
+  height: 5px;
+  width: 36px;
+  border-radius: 3px;
+  background: var(--border);
+  transition: background .3s;
+}
+.ds-step.active { background: var(--primary); }
+.ds-step.done   { background: var(--success); }
+
+/* ── Formulario de resultados ─────────────────────────────── */
+.form-label { font-weight: 500; font-size: .88rem; color: var(--text-muted); margin-bottom: 4px; }
+.form-control, .form-select {
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  padding: 10px 12px;
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color .2s, box-shadow .2s;
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(21,101,192,.15);
+  outline: none;
+}
+textarea.form-control { resize: vertical; min-height: 90px; }
+
+.field-row {
+  display: flex;
+  gap: 10px;
+}
+.field-row > * { flex: 1; }
+
+/* Badge tipo documento */
+.badge-doc {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: .78rem; font-weight: 600;
+}
+.badge-FACTURA { background: rgba(21,101,192,.12); color: var(--primary); }
+.badge-REMITO  { background: rgba(46,125,50,.12);  color: var(--success); }
+.badge-TICKET  { background: rgba(245,127,23,.15); color: var(--warning); }
+
+/* ── Loading overlay ──────────────────────────────────────── */
+.ds-loading {
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,.93);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(3px);
+}
+
+/* ── Historial ────────────────────────────────────────────── */
+.fw-600 { font-weight: 600; }
+
+/* ── Animaciones ──────────────────────────────────────────── */
+.ds-fade-in  { animation: fadeIn .35s ease; }
+.ds-slide-up { animation: slideUp .3s ease; }
+
+@keyframes fadeIn  { from { opacity:0 }           to { opacity:1 } }
+@keyframes slideUp { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:none } }
+
+/* ── Dark-mode mínimo ─────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface:    #1C1C2E;
+    --surface-2:  #12121E;
+    --border:     #2E3055;
+    --text:       #E8EAF6;
+    --text-muted: #8C90B8;
+    --shadow:     0 2px 12px rgba(0,0,0,.35);
+  }
+  .form-control, .form-select { background: #1C1C2E; color: #E8EAF6; }
+  .upload-zone { background: #12121E; }
+  .doc-btn     { background: #12121E; }
+}
+
+/* ── Responsive PC ────────────────────────────────────────── */
+@media (min-width: 540px) {
+  .ds-main { padding-top: 24px; }
+}

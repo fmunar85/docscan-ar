@@ -1,0 +1,41 @@
+# ── Python ─────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Entornos virtuales ──────────────────────────────────
+.venv/
+venv/
+env/
+.env/
+
+# ── Variables de entorno ────────────────────────────────
+.env
+*.env.local
+
+# ── Credenciales Google (¡NUNCA subir al repo!) ─────────
+credentials.json
+service_account.json
+*-credentials.json
+
+# ── Uploads temporales ──────────────────────────────────
+uploads/
+
+# ── IDE ─────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Logs ────────────────────────────────────────────────
+*.log
+logs/
