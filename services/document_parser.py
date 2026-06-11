@@ -45,14 +45,77 @@ def _parse_factura(text: str) -> dict:
 
 
 def _parse_remito(text: str) -> dict:
+    # Número de orden / remito
+    orden = (
+        _re_first(text, r'orden\s*de\s*salida[:\s#Nº]*([A-Z]{1,3}[-\s]?\d+)', 1) or
+        _re_first(text, r'orden\s*de\s*salida[:\s#Nº]*(\d{4,})', 1) or
+        ""
+    )
+    numero = _find_invoice_number(text) or orden
+
     return {
-        "fecha":         _find_date(text),
-        "numero":        _find_remito_number(text),
-        "proveedor":     _find_provider(text),
-        "destinatario":  _find_field(text, r"(?:destinatario|receptor|cliente)[:\s]+([^\n]+)"),
-        "articulos":     _find_items(text),
-        "observaciones": "",
+        "fecha":             _find_date(text),
+        "numero":            numero,
+        "orden_salida":      orden,
+        "pack":              _re_first(text, r'pack[:\s#Nº]*(\d+)', 1),
+        "proveedor":         (
+                               _re_first(text, r'Origen:[ \t]+([A-Z][^\n\r:]{2,40})', 1, re.IGNORECASE) or
+                               _re_first(text, r'(?:remitente|proveedor):[ \t]+([^\n\r]{3,60})', 1) or
+                               _find_provider(text)
+                             ),
+        "destinatario":      (
+                               # Para remitos de 2 columnas el OCR mezcla Destino y Origen en la misma línea
+                               # Usamos el separador de columnas (3+ espacios) para cortar
+                               re.split(r'\s{3,}', _re_first(text, r'^A:[ \t]+([^\n\r]{3,60})', 1, re.MULTILINE))[0].strip() or
+                               _re_first(text, r'destinatario:[ \t]+([^\n\r]{3,60})', 1) or
+                               _re_first(text, r'receptor:[ \t]+([^\n\r]{3,60})', 1) or
+                               ""
+                             ),
+        "destino_direccion": _re_first(text, r'Direcci[oó]n:[ \t]+([^\n\r]{5,80})', 1, re.IGNORECASE),
+        "destino_localidad": (
+                               _re_first(text, r'Ciudad[,\s]*(?:Provincia[,\s]*CP)?:[ \t]+([^\n\r]{3,80})', 1, re.IGNORECASE) or
+                               _re_first(text, r'Localidad:[ \t]+([^\n\r]{3,60})', 1, re.IGNORECASE) or
+                               ""
+                             ),
+        "articulos":         _find_remito_items(text),
+        "peso_total":        _re_first(text, r'peso\s*total\s*(?:\(kg\))?[:\s]*([0-9]+(?:[.,][0-9]+)?)', 1),
+        "observaciones":     "",
     }
+
+
+def _find_remito_items(text: str) -> str:
+    """Extrae las líneas de artículos de la tabla del remito."""
+    lines = text.splitlines()
+    items = []
+    in_table = False
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Detectar encabezado de tabla
+        if re.search(r'art[\u00edí]culo|descripci[oó]n|cant\.?\s*env|cont\.?\s*env|n\.?\s*l[ií]n', stripped, re.IGNORECASE):
+            in_table = True
+            continue
+        # Detectar pie de tabla
+        if in_table and re.search(r'peso\s*total|total\s*general|subtotal|firma|obser', stripped, re.IGNORECASE):
+            break
+        if in_table and stripped:
+            # Línea de artículo: empieza con dígito(s) seguido de código/descripción
+            if re.match(r'^\d+\s+', stripped):
+                parts = re.split(r'\s{2,}', stripped)
+                items.append('  |  '.join(p.strip() for p in parts if p.strip()))
+
+    if not items:
+        # Fallback genérico
+        for line in lines:
+            stripped = line.strip()
+            if re.search(r'\b\d+\s*(un|unid|pzas?|pares?|kg|lt|mts|bultos?|cajas?)\b', stripped, re.IGNORECASE):
+                items.append(stripped)
+            elif re.match(r'^\d+\s+\d{4,}\s+[A-ZÁÉÍÓÚ]', stripped):
+                items.append(stripped)
+
+    return "\n".join(items[:25]) if items else ""
 
 
 def _parse_ticket(text: str) -> dict:
@@ -107,15 +170,14 @@ def _find_invoice_number(text: str) -> str:
     return ""
 
 
-def _find_remito_number(text: str) -> str:
-    m = re.search(r"(?:REMITO|R[°º]?)[°º\s:#]*(\d{4}[-\s]\d{8}|\d{6,13})", text, re.IGNORECASE)
-    if m:
-        return m.group(1)
-    return ""
+def _re_first(text: str, pattern: str, group: int = 0, flags: int = re.IGNORECASE) -> str:
+    """Devuelve el primer match del grupo indicado, o string vacío."""
+    m = re.search(pattern, text, flags)
+    return m.group(group).strip() if m else ""
 
 
 def _find_provider(text: str) -> str:
-    """Intenta encontrar la razón social."""
+    """Intenta encontrar la razón social o nombre del emisor."""
     m = re.search(r"(?:raz[oó]n\s+social|nombre\s+y\s+apellido|empresa)[:\s]+([^\n]{3,60})", text, re.IGNORECASE)
     if m:
         return m.group(1).strip()
@@ -177,25 +239,6 @@ def _find_cae(text: str) -> str:
 def _find_cae_expiry(text: str) -> str:
     m = re.search(r"(?:venc(?:imiento)?\.?\s*(?:del?\s*)?cae|cae\s*venc)[:\s]*(\d{2}[/\-]\d{2}[/\-]\d{4}|\d{8})", text, re.IGNORECASE)
     return m.group(1) if m else ""
-
-
-def _find_field(text: str, pattern: str) -> str:
-    m = re.search(pattern, text, re.IGNORECASE)
-    return m.group(1).strip()[:80] if m else ""
-
-
-def _find_items(text: str) -> str:
-    """Extrae líneas que parecen artículos (número + texto)."""
-    lines = text.splitlines()
-    items = []
-    for line in lines:
-        line = line.strip()
-        # Líneas con cantidad y descripción
-        if re.search(r"^\d+[\s,]+\w", line) and len(line) > 5:
-            items.append(line)
-        elif re.search(r"\b\d+\s*(un|unid|kg|lt|mts|pzas?)\b", line, re.IGNORECASE):
-            items.append(line)
-    return "\n".join(items[:15]) if items else ""
 
 
 def _find_concept(text: str) -> str:

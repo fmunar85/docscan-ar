@@ -42,10 +42,14 @@ HEADERS = {
     "REMITOS": [
         "Fecha Registro",
         "Fecha Doc.",
-        "Número",
-        "Proveedor",
+        "Número/Orden",
+        "Pack",
+        "Proveedor/Origen",
         "Destinatario",
+        "Dirección Entrega",
+        "Ciudad/Localidad",
         "Artículos",
+        "Peso Total (kg)",
         "Observaciones",
     ],
     "TICKETS": [
@@ -141,10 +145,14 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
             row = [
                 now,
                 data.get("fecha", ""),
-                data.get("numero", ""),
+                data.get("numero", data.get("orden_salida", "")),
+                data.get("pack", ""),
                 data.get("proveedor", ""),
                 data.get("destinatario", ""),
+                data.get("destino_direccion", ""),
+                data.get("destino_localidad", ""),
                 data.get("articulos", ""),
+                data.get("peso_total", ""),
                 data.get("observaciones", ""),
             ]
         else:  # TICKETS

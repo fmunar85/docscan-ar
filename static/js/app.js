@@ -168,10 +168,14 @@ function renderResultForm(data, docType) {
         <span class="badge-doc badge-${docType}">${docIcon} ${docType}</span>
       </div>
       <div class="ds-card-body">
-        <p class="text-muted small mb-4">
-          <i class="fas fa-info-circle me-1"></i>
-          Revisá los datos extraídos. Podés editar lo que haga falta antes de guardar.
-        </p>
+        ${data._warning ? `
+        <div class="alert alert-warning py-2 px-3 small mb-3">
+          <i class="fas fa-exclamation-triangle me-1"></i>${data._warning}
+        </div>` : `
+        <p class="text-muted small mb-3">
+          <i class="fas fa-magic me-1"></i>
+          Datos extraídos automáticamente. Editá lo que haga falta.
+        </p>`}
         ${buildFields(data, docType)}
         <div class="mb-3">
           <label class="form-label">Observaciones</label>
@@ -264,12 +268,22 @@ function buildRemito(d) {
         <input class="form-control" id="f_fecha" value="${esc(d.fecha || '')}" placeholder="DD/MM/AAAA" />
       </div>
       <div>
-        <label class="form-label">Número</label>
-        <input class="form-control" id="f_numero" value="${esc(d.numero || '')}" />
+        <label class="form-label">Número / Orden</label>
+        <input class="form-control" id="f_numero" value="${esc(d.numero || d.orden_salida || '')}" />
+      </div>
+    </div>
+    <div class="field-row mb-3">
+      <div>
+        <label class="form-label">Orden de Salida</label>
+        <input class="form-control" id="f_orden_salida" value="${esc(d.orden_salida || '')}" placeholder="DL-304" />
+      </div>
+      <div>
+        <label class="form-label">Pack Nº</label>
+        <input class="form-control" id="f_pack" value="${esc(d.pack || '')}" inputmode="numeric" />
       </div>
     </div>
     <div class="mb-3">
-      <label class="form-label">Proveedor / Emisor</label>
+      <label class="form-label">Proveedor / Origen</label>
       <input class="form-control" id="f_proveedor" value="${esc(d.proveedor || '')}" />
     </div>
     <div class="mb-3">
@@ -277,8 +291,23 @@ function buildRemito(d) {
       <input class="form-control" id="f_destinatario" value="${esc(d.destinatario || '')}" />
     </div>
     <div class="mb-3">
-      <label class="form-label">Artículos / Descripción</label>
-      <textarea class="form-control" id="f_articulos" rows="5">${esc(d.articulos || '')}</textarea>
+      <label class="form-label">Dirección de entrega</label>
+      <input class="form-control" id="f_destino_direccion" value="${esc(d.destino_direccion || '')}" />
+    </div>
+    <div class="field-row mb-3">
+      <div style="flex:2">
+        <label class="form-label">Ciudad / Localidad</label>
+        <input class="form-control" id="f_destino_localidad" value="${esc(d.destino_localidad || '')}" />
+      </div>
+      <div>
+        <label class="form-label">Peso total (kg)</label>
+        <input class="form-control" id="f_peso_total" value="${esc(d.peso_total || '')}" inputmode="decimal" />
+      </div>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Artículos</label>
+      <textarea class="form-control" id="f_articulos" rows="6" style="font-family:monospace;font-size:.82rem">${esc(d.articulos || '')}</textarea>
+      <div class="text-muted" style="font-size:.75rem;margin-top:4px">Formato sugerido: Código | Descripción | Cantidad | Peso</div>
     </div>`;
 }
 

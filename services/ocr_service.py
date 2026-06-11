@@ -1,12 +1,13 @@
 """
 Servicio OCR de DocScan AR
 ===========================
-Estrategia (en orden de prioridad):
-  1. OpenAI GPT-4o Vision  → más preciso, devuelve JSON estructurado directamente.
-  2. Google Cloud Vision   → extrae texto crudo; luego se parsea con document_parser.
-  3. pdfplumber            → para archivos PDF (sin visión; extrae texto nativo).
-
-Se intenta automáticamente según las variables de entorno disponibles.
+Extrae texto de documentos SIN necesitar ninguna API externa.
+Orden de prioridad:
+  PDF    → pdfplumber        (texto nativo, 100% gratis y local)
+  Imagen → pytesseract       (OCR local, gratis, necesita Tesseract instalado)
+  Imagen → OpenAI GPT-4o     (opcional, máxima precisión si OPENAI_API_KEY está configurado)
+  Imagen → Google Vision     (opcional, si GOOGLE_CREDENTIALS_JSON está configurado)
+  Sin OCR → formulario vacío (carga manual, siempre funciona)
 """
 import os
 import io
@@ -14,7 +15,7 @@ import json
 import base64
 import tempfile
 
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
 
 from services.document_parser import parse_document
 
@@ -26,30 +27,48 @@ from services.document_parser import parse_document
 def process_document(filepath: str, doc_type: str) -> dict:
     """
     Procesa el archivo y devuelve un dict con los campos extraídos.
-    Lanza Exception si no hay servicio configurado o si falla todo.
+    Nunca lanza excepción: si todo falla devuelve formulario vacío.
     """
     ext = filepath.rsplit(".", 1)[-1].lower()
 
-    # PDF: extraer texto nativo primero
+    # ── PDF: texto nativo (sin API, sin Tesseract) ────────────────
     if ext == "pdf":
-        raw_text = _extract_pdf_text(filepath)
-        return parse_document(raw_text, doc_type)
+        try:
+            raw_text = _extract_pdf_text(filepath)
+            if raw_text.strip():
+                return parse_document(raw_text, doc_type)
+        except Exception as e:
+            print(f"[OCR] pdfplumber: {e}")
 
-    # Imagen: preferir OpenAI (devuelve JSON directo)
-    openai_key = os.environ.get("OPENAI_API_KEY", "")
-    google_creds = os.environ.get("GOOGLE_CREDENTIALS_JSON", "")
+    # ── Imagen: OpenAI GPT-4o si está configurado (mejor calidad) ─
+    if os.environ.get("OPENAI_API_KEY"):
+        try:
+            return _process_with_openai(filepath, doc_type)
+        except Exception as e:
+            print(f"[OCR] OpenAI: {e} — probando método local")
 
-    if openai_key:
-        return _process_with_openai(filepath, doc_type)
+    # ── Imagen: Google Vision si está configurado ─────────────────
+    if os.environ.get("GOOGLE_CREDENTIALS_JSON") or os.path.exists("credentials.json"):
+        try:
+            raw_text = _extract_with_google_vision(filepath)
+            if raw_text.strip():
+                return parse_document(raw_text, doc_type)
+        except Exception as e:
+            print(f"[OCR] Google Vision: {e} — probando pytesseract")
 
-    if google_creds or os.path.exists("credentials.json"):
-        raw_text = _extract_with_google_vision(filepath)
-        return parse_document(raw_text, doc_type)
+    # ── Imagen: pytesseract LOCAL (gratis, sin internet) ─────────
+    try:
+        raw_text = _extract_with_tesseract(filepath)
+        if raw_text.strip():
+            return parse_document(raw_text, doc_type)
+    except Exception as e:
+        print(f"[OCR] pytesseract: {e}")
 
-    raise RuntimeError(
-        "No hay servicio OCR configurado. "
-        "Definí OPENAI_API_KEY o GOOGLE_CREDENTIALS_JSON en las variables de entorno."
-    )
+    # ── Fallback: formulario vacío para carga manual ──────────────
+    print("[OCR] Sin texto extraído — mostrando formulario vacío")
+    result = parse_document("", doc_type)
+    result["_warning"] = "No se pudo leer el documento automáticamente. Completá los campos manualmente."
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +85,55 @@ def _extract_pdf_text(filepath: str) -> str:
             if page_text:
                 text_parts.append(page_text)
     return "\n".join(text_parts)
+
+
+# ---------------------------------------------------------------------------
+# Imagen  →  pytesseract (OCR local, gratis)
+# ---------------------------------------------------------------------------
+
+def _preprocess_for_ocr(filepath: str) -> Image.Image:
+    """Preprocesa la imagen para maximizar la precisión del OCR."""
+    try:
+        import pillow_heif
+        pillow_heif.register_heif_opener()
+    except ImportError:
+        pass
+
+    img = Image.open(filepath).convert("RGB")
+    img = img.convert("L")  # escala de grises
+
+    # Aumentar resolución si la imagen es pequeña
+    w, h = img.size
+    if w < 1200:
+        scale = 1200 / w
+        img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+
+    img = ImageEnhance.Contrast(img).enhance(1.8)
+    img = img.filter(ImageFilter.SHARPEN)
+    return img
+
+
+def _extract_with_tesseract(filepath: str) -> str:
+    """
+    OCR local con pytesseract. Requiere Tesseract instalado.
+    Windows: https://github.com/UB-Mannheim/tesseract/wiki
+    Railway/Linux: instalado vía Dockerfile (apt tesseract-ocr tesseract-ocr-spa)
+    """
+    import pytesseract
+
+    img = _preprocess_for_ocr(filepath)
+    config = "--psm 3 --oem 3"
+
+    # Intentar con español + inglés, luego solo inglés como fallback
+    for lang in ("spa+eng", "eng"):
+        try:
+            text = pytesseract.image_to_string(img, lang=lang, config=config)
+            if text.strip():
+                return text
+        except pytesseract.TesseractError:
+            continue
+
+    return pytesseract.image_to_string(img, config=config)
 
 
 # ---------------------------------------------------------------------------
@@ -91,17 +159,22 @@ Analizá esta imagen de una factura y extraé los datos. Devolvé ÚNICAMENTE un
 }
 Si algún campo no está visible, dejalo vacío (""). Devolvé solo el JSON.""",
 
-    "REMITO": """Sos un asistente experto en documentos comerciales argentinos.
+    "REMITO": """Sos un experto en documentos comerciales.
 Analizá esta imagen de un remito y extraé los datos. Devolvé ÚNICAMENTE un objeto JSON válido, sin markdown:
 {
   "fecha": "DD/MM/YYYY",
-  "numero": "XXXX-XXXXXXXX",
-  "proveedor": "razón social del emisor",
-  "destinatario": "nombre del destinatario",
-  "articulos": "listado de artículos con cantidades separados por \\n",
+  "numero": "número de remito",
+  "orden_salida": "número de orden de salida (ej: DL-304)",
+  "pack": "número de pack si existe",
+  "proveedor": "razón social o nombre del emisor/origen",
+  "destinatario": "nombre completo del destinatario",
+  "destino_direccion": "dirección de entrega",
+  "destino_localidad": "ciudad, provincia y CP",
+  "articulos": "listado: Artículo | Descripción | Cant | Peso separados por \\n",
+  "peso_total": "peso total en kg como número",
   "observaciones": ""
 }
-Si algún campo no está visible, dejalo vacío (""). Devolvé solo el JSON.""",
+Si algún campo no está visible, dejalo vacío (""). Solo el JSON, sin markdown.""",
 
     "TICKET": """Sos un asistente experto en comprobantes de gastos.
 Analizá esta imagen de un ticket/comprobante y extraé los datos. Devolvé ÚNICAMENTE un objeto JSON válido, sin markdown:
