@@ -36,7 +36,8 @@ def process_document(filepath: str, doc_type: str) -> dict:
         try:
             raw_text = _extract_pdf_text(filepath)
             if raw_text.strip():
-                return parse_document(raw_text, doc_type)
+                detected = _auto_type(raw_text, doc_type)
+                return parse_document(raw_text, detected)
         except Exception as e:
             print(f"[OCR] pdfplumber: {e}")
 
@@ -52,7 +53,8 @@ def process_document(filepath: str, doc_type: str) -> dict:
         try:
             raw_text = _extract_with_google_vision(filepath)
             if raw_text.strip():
-                return parse_document(raw_text, doc_type)
+                detected = _auto_type(raw_text, doc_type)
+                return parse_document(raw_text, detected)
         except Exception as e:
             print(f"[OCR] Google Vision: {e} — probando pytesseract")
 
@@ -60,7 +62,8 @@ def process_document(filepath: str, doc_type: str) -> dict:
     try:
         raw_text = _extract_with_tesseract(filepath)
         if raw_text.strip():
-            return parse_document(raw_text, doc_type)
+            detected = _auto_type(raw_text, doc_type)
+            return parse_document(raw_text, detected)
     except Exception as e:
         print(f"[OCR] pytesseract: {e}")
 
@@ -69,6 +72,17 @@ def process_document(filepath: str, doc_type: str) -> dict:
     result = parse_document("", doc_type)
     result["_warning"] = "No se pudo leer el documento automáticamente. Completá los campos manualmente."
     return result
+
+
+def _auto_type(text: str, user_selected: str) -> str:
+    """
+    Si el usuario ya eligió un tipo específico (no AUTO), lo respeta.
+    Si no, detecta automáticamente del texto.
+    """
+    from services.document_parser import detect_doc_type
+    if user_selected and user_selected.upper() not in ('AUTO', ''):
+        return user_selected.upper()
+    return detect_doc_type(text)
 
 
 # ---------------------------------------------------------------------------

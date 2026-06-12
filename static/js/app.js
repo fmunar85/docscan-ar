@@ -128,7 +128,7 @@ function clearFile(evt) {
 async function submitDocument() {
   if (!selectedFile) { showToast('❌ Seleccioná un archivo primero', 'warning'); return; }
   setStep(3);
-  showLoading('Analizando documento…', 'Extrayendo datos con IA 🤖');
+  showLoading('Leyendo documento…', 'Extrayendo datos 📄');
 
   const fd = new FormData();
   fd.append('file', selectedFile);
@@ -140,6 +140,13 @@ async function submitDocument() {
     hideLoading();
 
     if (json.success) {
+      // Si el tipo fue auto-detectado, actualizar el selector visual
+      if (json.doc_type !== currentDocType) {
+        currentDocType = json.doc_type;
+        document.querySelectorAll('.doc-btn').forEach(b => {
+          b.classList.toggle('active', b.dataset.type === json.doc_type);
+        });
+      }
       renderResultForm(json.data, json.doc_type);
     } else {
       showToast('❌ ' + (json.error || 'Error al procesar'), 'danger');
@@ -170,11 +177,11 @@ function renderResultForm(data, docType) {
       <div class="ds-card-body">
         ${data._warning ? `
         <div class="alert alert-warning py-2 px-3 small mb-3">
-          <i class="fas fa-exclamation-triangle me-1"></i>${data._warning}
+          <i class="fas fa-edit me-1"></i>${data._warning}
         </div>` : `
         <p class="text-muted small mb-3">
-          <i class="fas fa-magic me-1"></i>
-          Datos extraídos automáticamente. Editá lo que haga falta.
+          <i class="fas fa-check-circle me-1 text-success"></i>
+          Datos leídos del documento. Editá lo que haga falta.
         </p>`}
         ${buildFields(data, docType)}
         <div class="mb-3">

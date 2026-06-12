@@ -1,10 +1,48 @@
 """
 Parser de documentos argentinos (Facturas, Remitos, Tickets).
-Se usa como fallback cuando no hay OpenAI o cuando el input es PDF.
-Extrae campos mediante expresiones regulares adaptadas al formato AFIP.
+Extrae campos con expresiones regulares. Sin APIs externas.
 """
 import re
 from datetime import datetime
+
+
+# ---------------------------------------------------------------------------
+# Detección automática del tipo de documento
+# ---------------------------------------------------------------------------
+
+def detect_doc_type(text: str) -> str:
+    """Detecta el tipo de documento desde el texto extraído."""
+    t = text.lower()
+
+    remito_score = sum([
+        4 if 'remito' in t else 0,
+        3 if 'orden de salida' in t else 0,
+        2 if 'destinatario' in t else 0,
+        2 if ('pack' in t and 'peso' in t) else 0,
+        2 if 'easywms' in t.replace(' ', '') else 0,
+        1 if 'bulto' in t or 'palet' in t else 0,
+        1 if 'despacho' in t else 0,
+    ])
+
+    factura_score = sum([
+        4 if re.search(r'\bfactura\b', t) else 0,
+        3 if 'cae' in t else 0,
+        3 if 'cuit' in t else 0,
+        2 if re.search(r'\biva\b|i\.v\.a', t) else 0,
+        2 if 'afip' in t else 0,
+        1 if 'subtotal' in t else 0,
+    ])
+
+    ticket_score = sum([
+        4 if re.search(r'\bticket\b|comprobante de pago', t) else 0,
+        3 if any(w in t for w in ['nafta', 'combustible', 'gasoil', 'ypf', 'shell', 'axion']) else 0,
+        3 if any(w in t for w in ['peaje', 'autopista', 'telepeaje']) else 0,
+        1 if any(w in t for w in ['estacionamiento', 'parking']) else 0,
+    ])
+
+    scores = {'REMITO': remito_score, 'FACTURA': factura_score, 'TICKET': ticket_score}
+    best = max(scores, key=scores.get)
+    return best if scores[best] > 0 else 'FACTURA'
 
 
 # ---------------------------------------------------------------------------
@@ -12,6 +50,10 @@ from datetime import datetime
 # ---------------------------------------------------------------------------
 
 def parse_document(text: str, doc_type: str) -> dict:
+    # Si el tipo es AUTO o vacío, detectarlo del texto
+    if not doc_type or doc_type.upper() == 'AUTO':
+        doc_type = detect_doc_type(text)
+
     parsers = {
         "FACTURA": _parse_factura,
         "REMITO":  _parse_remito,
