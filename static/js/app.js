@@ -275,46 +275,68 @@ function buildRemito(d) {
         <input class="form-control" id="f_fecha" value="${esc(d.fecha || '')}" placeholder="DD/MM/AAAA" />
       </div>
       <div>
-        <label class="form-label">Número / Orden</label>
-        <input class="form-control" id="f_numero" value="${esc(d.numero || d.orden_salida || '')}" />
+        <label class="form-label">Orden de Salida</label>
+        <input class="form-control" id="f_orden_salida" value="${esc(d.orden_salida || '')}" placeholder="DL_004" />
       </div>
     </div>
     <div class="field-row mb-3">
       <div>
-        <label class="form-label">Orden de Salida</label>
-        <input class="form-control" id="f_orden_salida" value="${esc(d.orden_salida || '')}" placeholder="DL-304" />
-      </div>
-      <div>
         <label class="form-label">Pack Nº</label>
         <input class="form-control" id="f_pack" value="${esc(d.pack || '')}" inputmode="numeric" />
       </div>
+      <div>
+        <label class="form-label">Peso Total (kg)</label>
+        <input class="form-control" id="f_peso_total" value="${esc(d.peso_total || '')}" inputmode="decimal" />
+      </div>
+    </div>
+
+    <div class="ds-section-label">📦 ORIGEN</div>
+    <div class="mb-3">
+      <label class="form-label">Nombre / Empresa</label>
+      <input class="form-control" id="f_origen_nombre" value="${esc(d.origen_nombre || '')}" placeholder="SPRTS" />
     </div>
     <div class="mb-3">
-      <label class="form-label">Proveedor / Origen</label>
-      <input class="form-control" id="f_proveedor" value="${esc(d.proveedor || '')}" />
+      <label class="form-label">Dirección Origen</label>
+      <input class="form-control" id="f_origen_direccion" value="${esc(d.origen_direccion || '')}" />
     </div>
+    <div class="field-row mb-3">
+      <div style="flex:2">
+        <label class="form-label">Ciudad / Provincia Origen</label>
+        <input class="form-control" id="f_origen_ciudad" value="${esc(d.origen_ciudad || '')}" />
+      </div>
+      <div>
+        <label class="form-label">Tel. Origen</label>
+        <input class="form-control" id="f_origen_telefono" value="${esc(d.origen_telefono || '')}" inputmode="tel" />
+      </div>
+    </div>
+
+    <div class="ds-section-label">🏠 DESTINO</div>
     <div class="mb-3">
       <label class="form-label">Destinatario</label>
       <input class="form-control" id="f_destinatario" value="${esc(d.destinatario || '')}" />
     </div>
     <div class="mb-3">
-      <label class="form-label">Dirección de entrega</label>
+      <label class="form-label">Dirección Destino</label>
       <input class="form-control" id="f_destino_direccion" value="${esc(d.destino_direccion || '')}" />
     </div>
     <div class="field-row mb-3">
       <div style="flex:2">
-        <label class="form-label">Ciudad / Localidad</label>
-        <input class="form-control" id="f_destino_localidad" value="${esc(d.destino_localidad || '')}" />
+        <label class="form-label">Ciudad / Provincia Destino</label>
+        <input class="form-control" id="f_destino_ciudad" value="${esc(d.destino_ciudad || '')}" />
       </div>
       <div>
-        <label class="form-label">Peso total (kg)</label>
-        <input class="form-control" id="f_peso_total" value="${esc(d.peso_total || '')}" inputmode="decimal" />
+        <label class="form-label">Tel. Destino</label>
+        <input class="form-control" id="f_destino_telefono" value="${esc(d.destino_telefono || '')}" inputmode="tel" />
       </div>
     </div>
+
+    <div class="ds-section-label">📋 ARTÍCULOS</div>
+    <div class="text-muted mb-2" style="font-size:.76rem">
+      Nº Línea | Artículo | Descripción | Cant. | Peso ind. | Peso
+    </div>
     <div class="mb-3">
-      <label class="form-label">Artículos</label>
-      <textarea class="form-control" id="f_articulos" rows="6" style="font-family:monospace;font-size:.82rem">${esc(d.articulos || '')}</textarea>
-      <div class="text-muted" style="font-size:.75rem;margin-top:4px">Formato sugerido: Código | Descripción | Cantidad | Peso</div>
+      <textarea class="form-control" id="f_articulos" rows="7"
+        style="font-family:monospace;font-size:.81rem;white-space:pre">${esc(d.articulos || '')}</textarea>
     </div>`;
 }
 

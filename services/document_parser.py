@@ -87,77 +87,132 @@ def _parse_factura(text: str) -> dict:
 
 
 def _parse_remito(text: str) -> dict:
-    # Número de orden / remito
+    # Separar columnas Destino (izq) y Origen (der)
+    destino_txt, origen_txt = _split_destino_origen(text)
+
+    # Orden de salida
     orden = (
-        _re_first(text, r'orden\s*de\s*salida[:\s#Nº]*([A-Z]{1,3}[-\s]?\d+)', 1) or
-        _re_first(text, r'orden\s*de\s*salida[:\s#Nº]*(\d{4,})', 1) or
+        _re_first(text, r'Orden\s+de\s+salida:\s*([A-Z0-9_\-]+)', 1, re.IGNORECASE) or
+        _re_first(text, r'Orden\s+de\s+salida[:\s]+([A-Z]{1,3}[_\-]?\d+)', 1, re.IGNORECASE) or
         ""
     )
-    numero = _find_invoice_number(text) or orden
+
+    # Destinatario: "A:" en seccion destino
+    destinatario = (
+        _re_first(destino_txt, r'^A:\s+(.+)', 1, re.MULTILINE) or
+        re.split(r'\s{3,}', _re_first(text, r'^A:\s+([^\n\r]{3,60})', 1, re.MULTILINE) or '')[0].strip()
+    )
+
+    # Direcciones: findall devuelve [destino, origen] en orden
+    dirs = re.findall(r'Direcci[o\u00f3]n:\s+(.+?)(?=\s{2,}|\n|Direcci[o\u00f3]n:|$)', text, re.IGNORECASE)
+    destino_dir = dirs[0].strip()[:80] if len(dirs) > 0 else ''
+    origen_dir  = dirs[1].strip()[:80] if len(dirs) > 1 else _re_first(origen_txt, r'Direcci[o\u00f3]n:\s+(.+)', 1, re.IGNORECASE)
+
+    # Ciudades
+    ciudades = re.findall(r'Ciudad,?\s*Provincia,?\s*CP:\s+(.+?)(?=\s{2,}|\n|Ciudad|$)', text, re.IGNORECASE)
+    destino_ciudad = ciudades[0].strip()[:80] if len(ciudades) > 0 else ''
+    origen_ciudad  = ciudades[1].strip()[:80] if len(ciudades) > 1 else _re_first(origen_txt, r'Ciudad,?\s*Provincia,?\s*CP:\s+(.+)', 1, re.IGNORECASE)
+
+    # Telefonos
+    tels = re.findall(r'Tel[e\u00e9]fono:\s+(.+?)(?=\s{2,}|\n|Tel[e\u00e9]fono:|$)', text, re.IGNORECASE)
+    destino_tel = tels[0].strip()[:40] if len(tels) > 0 else ''
+    origen_tel  = tels[1].strip()[:40] if len(tels) > 1 else _re_first(origen_txt, r'Tel[e\u00e9]fono:\s+(.+)', 1, re.IGNORECASE)
+
+    # Origen nombre
+    origen_nombre = (
+        _re_first(origen_txt, r'^Origen:\s+(.+)', 1, re.MULTILINE | re.IGNORECASE) or
+        _re_first(text, r'Origen:\s+([A-Z][A-Za-z0-9\s]{1,25})(?:\s{2,}|\n|$)', 1)
+    )
 
     return {
         "fecha":             _find_date(text),
-        "numero":            numero,
         "orden_salida":      orden,
-        "pack":              _re_first(text, r'pack[:\s#Nº]*(\d+)', 1),
-        "proveedor":         (
-                               _re_first(text, r'Origen:[ \t]+([A-Z][^\n\r:]{2,40})', 1, re.IGNORECASE) or
-                               _re_first(text, r'(?:remitente|proveedor):[ \t]+([^\n\r]{3,60})', 1) or
-                               _find_provider(text)
-                             ),
-        "destinatario":      (
-                               # Para remitos de 2 columnas el OCR mezcla Destino y Origen en la misma línea
-                               # Usamos el separador de columnas (3+ espacios) para cortar
-                               re.split(r'\s{3,}', _re_first(text, r'^A:[ \t]+([^\n\r]{3,60})', 1, re.MULTILINE))[0].strip() or
-                               _re_first(text, r'destinatario:[ \t]+([^\n\r]{3,60})', 1) or
-                               _re_first(text, r'receptor:[ \t]+([^\n\r]{3,60})', 1) or
-                               ""
-                             ),
-        "destino_direccion": _re_first(text, r'Direcci[oó]n:[ \t]+([^\n\r]{5,80})', 1, re.IGNORECASE),
-        "destino_localidad": (
-                               _re_first(text, r'Ciudad[,\s]*(?:Provincia[,\s]*CP)?:[ \t]+([^\n\r]{3,80})', 1, re.IGNORECASE) or
-                               _re_first(text, r'Localidad:[ \t]+([^\n\r]{3,60})', 1, re.IGNORECASE) or
-                               ""
-                             ),
+        "pack":              _re_first(text, r'Pack[:\s#N\u00ba]*(\d+)', 1, re.IGNORECASE),
+        "origen_nombre":     (origen_nombre or '').strip()[:60],
+        "origen_direccion":  (origen_dir or '').strip()[:80],
+        "origen_ciudad":     (origen_ciudad or '').strip()[:80],
+        "origen_telefono":   (origen_tel or '').strip()[:40],
+        "destinatario":      (destinatario or '').strip()[:60],
+        "destino_direccion": (destino_dir or '').strip()[:80],
+        "destino_ciudad":    (destino_ciudad or '').strip()[:80],
+        "destino_telefono":  (destino_tel or '').strip()[:40],
         "articulos":         _find_remito_items(text),
-        "peso_total":        _re_first(text, r'peso\s*total\s*(?:\(kg\))?[:\s]*([0-9]+(?:[.,][0-9]+)?)', 1),
+        "peso_total":        _re_first(text, r'Peso\s+total\s*(?:\(kg\))?[:\s]*([0-9]+(?:[.,][0-9]+)?)', 1, re.IGNORECASE),
         "observaciones":     "",
     }
 
 
 def _find_remito_items(text: str) -> str:
-    """Extrae las líneas de artículos de la tabla del remito."""
+    """Extrae la tabla de artículos: NºLínea|Artículo|Descripción|Cant|Peso ind.|Peso."""
     lines = text.splitlines()
     items = []
     in_table = False
 
     for line in lines:
-        stripped = line.strip()
-        if not stripped:
+        s = line.strip()
+        if not s:
             continue
         # Detectar encabezado de tabla
-        if re.search(r'art[\u00edí]culo|descripci[oó]n|cant\.?\s*env|cont\.?\s*env|n\.?\s*l[ií]n', stripped, re.IGNORECASE):
+        if re.search(r'art[\u00edií]culo|descripci[o\u00f3]n|cant\.?\s*env|n[\u00ba\u00b0]?\s*l[\u00edií]n', s, re.IGNORECASE):
             in_table = True
             continue
-        # Detectar pie de tabla
-        if in_table and re.search(r'peso\s*total|total\s*general|subtotal|firma|obser', stripped, re.IGNORECASE):
+        # Fin de tabla
+        if in_table and re.search(r'peso\s*total|firma|observ', s, re.IGNORECASE):
             break
-        if in_table and stripped:
-            # Línea de artículo: empieza con dígito(s) seguido de código/descripción
-            if re.match(r'^\d+\s+', stripped):
-                parts = re.split(r'\s{2,}', stripped)
-                items.append('  |  '.join(p.strip() for p in parts if p.strip()))
+        if in_table and re.match(r'^\d+\s+', s):
+            parts = re.split(r'\s{2,}', s)
+            items.append(' | '.join(p.strip() for p in parts if p.strip()))
 
     if not items:
-        # Fallback genérico
+        # Fallback: lineas con codigo de 5-6 digitos
         for line in lines:
-            stripped = line.strip()
-            if re.search(r'\b\d+\s*(un|unid|pzas?|pares?|kg|lt|mts|bultos?|cajas?)\b', stripped, re.IGNORECASE):
-                items.append(stripped)
-            elif re.match(r'^\d+\s+\d{4,}\s+[A-ZÁÉÍÓÚ]', stripped):
-                items.append(stripped)
+            s = line.strip()
+            if re.match(r'^\d+\s+\d{5,6}\s+', s):
+                parts = re.split(r'\s{2,}', s)
+                items.append(' | '.join(p.strip() for p in parts if p.strip()))
 
     return "\n".join(items[:25]) if items else ""
+
+
+def _split_destino_origen(text: str) -> tuple:
+    """
+    Para remitos de 2 columnas (easyWMS, etc.), divide el texto OCR
+    en seccion Destino (izq) y Origen (der).
+    Cada linea se divide por 2+ espacios: izq=destino, der=origen.
+    """
+    destino_lines = []
+    origen_lines  = []
+    mode = None  # None | 'destino' | 'origen' | 'both'
+
+    for line in text.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        has_d = bool(re.search(r'\bDestino\b', s, re.IGNORECASE))
+        has_o = bool(re.search(r'\bOrigen\b', s, re.IGNORECASE))
+
+        if has_d and has_o:
+            mode = 'both'
+            continue
+        if has_d and not has_o:
+            mode = 'destino'
+            continue
+        if has_o and not has_d:
+            mode = 'origen'
+            continue
+
+        parts = re.split(r'\s{2,}', s)
+        if len(parts) >= 2 and mode in ('both', None):
+            destino_lines.append(parts[0])
+            origen_lines.append(parts[-1])
+        elif mode == 'destino':
+            destino_lines.append(s)
+        elif mode == 'origen':
+            origen_lines.append(s)
+        else:
+            destino_lines.append(s)
+
+    return '\n'.join(destino_lines), '\n'.join(origen_lines)
 
 
 def _parse_ticket(text: str) -> dict:

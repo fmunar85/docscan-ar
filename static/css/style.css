@@ -238,6 +238,19 @@ textarea.form-control { resize: vertical; min-height: 90px; }
 /* ── Historial ────────────────────────────────────────────── */
 .fw-600 { font-weight: 600; }
 
+/* ── Separadores de sección en formularios ────────────────── */
+.ds-section-label {
+  font-weight: 700;
+  font-size: .8rem;
+  letter-spacing: .06em;
+  color: var(--primary);
+  background: rgba(21,101,192,.07);
+  border-left: 3px solid var(--primary);
+  padding: 5px 10px;
+  border-radius: 0 6px 6px 0;
+  margin: 16px 0 10px;
+}
+
 /* ── Animaciones ──────────────────────────────────────────── */
 .ds-fade-in  { animation: fadeIn .35s ease; }
 .ds-slide-up { animation: slideUp .3s ease; }
