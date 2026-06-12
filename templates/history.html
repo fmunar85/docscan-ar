@@ -67,7 +67,7 @@
         <td>{{ rec.get('Peso Ind. (kg)','') }}</td>
         <td>{{ rec.get('Peso Total Art. (kg)','') }}</td>
       </tr>
-      {% if loop.last or records[loop.index].get('Orden de Salida','') != orden %}
+      {% if loop.last or loop.nextitem.get('Orden de Salida','') != orden %}
               </tbody>
             </table>
             <div class="text-end text-muted" style="font-size:.75rem">
