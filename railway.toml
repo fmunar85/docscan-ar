@@ -1,9 +1,6 @@
-[build]
+﻿[build]
 builder = "dockerfile"
 
 [deploy]
 restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 5
-
-[environment]
-PYTHONUNBUFFERED = "1"
+restartPolicyMaxRetries = 3
