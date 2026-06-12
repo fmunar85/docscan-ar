@@ -21,43 +21,93 @@
 
 <!-- Lista de registros -->
 {% if records %}
+  {% set ns = namespace(current_orden='', printed_header=false) %}
   {% for rec in records %}
-    <div class="ds-card mb-2">
-      <div class="ds-card-body py-3">
-        <div class="d-flex justify-content-between align-items-start">
-          <div>
-            {% if doc_type == 'FACTURA' %}
-              <div class="fw-600">{{ rec.get('Proveedor', '—') }}</div>
-              <div class="text-muted small">
-                Nº {{ rec.get('Número', '—') }} &nbsp;·&nbsp; {{ rec.get('Fecha Doc.', '') }}
-              </div>
-              {% if rec.get('CUIT') %}
-                <div class="text-muted small">CUIT: {{ rec.get('CUIT') }}</div>
-              {% endif %}
-            {% elif doc_type == 'REMITO' %}
-              <div class="fw-600">{{ rec.get('Proveedor', '—') }}</div>
-              <div class="text-muted small">
-                Nº {{ rec.get('Número', '—') }} &nbsp;·&nbsp; {{ rec.get('Fecha Doc.', '') }}
-              </div>
-              {% if rec.get('Destinatario') %}
-                <div class="text-muted small">→ {{ rec.get('Destinatario') }}</div>
-              {% endif %}
-            {% else %}
-              <div class="fw-600">{{ rec.get('Comercio', rec.get('Concepto', '—')) }}</div>
-              <div class="text-muted small">{{ rec.get('Fecha Doc.', '') }}</div>
-              <span class="badge bg-warning text-dark small">{{ rec.get('Categoría', '') }}</span>
-            {% endif %}
+    {% if doc_type == 'REMITO' %}
+      {% set orden = rec.get('Orden de Salida', '') %}
+      {% if orden != ns.current_orden %}
+        {% set ns.current_orden = orden %}
+        {% set ns.printed_header = false %}
+        <div class="ds-card mb-1 mt-3">
+          <div class="ds-card-header d-flex justify-content-between align-items-center">
+            <span>📦 Orden: <strong>{{ orden or '(sin orden)' }}</strong></span>
+            <span class="small opacity-75">{{ rec.get('Fecha Doc.', '') }} &nbsp;·&nbsp; Pack: {{ rec.get('Pack Nº', '') }}</span>
           </div>
-          <div class="text-end ms-2">
-            {% set importe = rec.get('Total', rec.get('Monto', '')) %}
-            {% if importe %}
-              <div class="fw-600 text-primary">$ {{ importe }}</div>
-            {% endif %}
-            <div class="text-muted" style="font-size:0.7rem">{{ rec.get('Fecha Registro', '') }}</div>
+          <div class="ds-card-body py-2 px-3" style="font-size:.82rem">
+            <div class="row g-1 mb-2">
+              <div class="col-6">
+                <span class="text-muted">Origen:</span><br>
+                <strong>{{ rec.get('Origen','') }}</strong><br>
+                <span class="text-muted">{{ rec.get('Dirección Origen','') }}</span><br>
+                <span class="text-muted">{{ rec.get('Ciudad Origen','') }}</span><br>
+                <span class="text-muted">📞 {{ rec.get('Tel. Origen','') }}</span>
+              </div>
+              <div class="col-6">
+                <span class="text-muted">Destino:</span><br>
+                <strong>{{ rec.get('Destinatario','') }}</strong><br>
+                <span class="text-muted">{{ rec.get('Dirección Destino','') }}</span><br>
+                <span class="text-muted">{{ rec.get('Ciudad Destino','') }}</span><br>
+                <span class="text-muted">📞 {{ rec.get('Tel. Destino','') }}</span>
+              </div>
+            </div>
+            <table class="table table-sm table-bordered mb-1" style="font-size:.78rem">
+              <thead class="table-primary">
+                <tr>
+                  <th>Línea</th><th>Código</th><th>Descripción</th>
+                  <th>Cant.</th><th>Peso ind.</th><th>Peso</th>
+                </tr>
+              </thead>
+              <tbody>
+      {% endif %}
+      <tr>
+        <td>{{ rec.get('Nº Línea','') }}</td>
+        <td>{{ rec.get('Artículo (Código)','') }}</td>
+        <td>{{ rec.get('Descripción','') }}</td>
+        <td>{{ rec.get('Cant. Enviada','') }}</td>
+        <td>{{ rec.get('Peso Ind. (kg)','') }}</td>
+        <td>{{ rec.get('Peso Total Art. (kg)','') }}</td>
+      </tr>
+      {% if loop.last or records[loop.index].get('Orden de Salida','') != orden %}
+              </tbody>
+            </table>
+            <div class="text-end text-muted" style="font-size:.75rem">
+              Peso total: <strong>{{ rec.get('Peso Total (kg)','') }} kg</strong>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+    {% elif doc_type == 'FACTURA' %}
+      <div class="ds-card mb-2">
+        <div class="ds-card-body py-3">
+          <div class="d-flex justify-content-between">
+            <div>
+              <div class="fw-600">{{ rec.get('Proveedor', '—') }}</div>
+              <div class="text-muted small">Nº {{ rec.get('Número', '—') }} &nbsp;·&nbsp; {{ rec.get('Fecha Doc.', '') }}</div>
+              {% if rec.get('CUIT') %}<div class="text-muted small">CUIT: {{ rec.get('CUIT') }}</div>{% endif %}
+            </div>
+            <div class="text-end">
+              <div class="fw-600 text-primary">$ {{ rec.get('Total','') }}</div>
+              <div class="text-muted" style="font-size:.7rem">{{ rec.get('Fecha Registro','') }}</div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+    {% else %}
+      <div class="ds-card mb-2">
+        <div class="ds-card-body py-3">
+          <div class="d-flex justify-content-between">
+            <div>
+              <div class="fw-600">{{ rec.get('Comercio', rec.get('Concepto', '—')) }}</div>
+              <div class="text-muted small">{{ rec.get('Fecha Doc.', '') }}</div>
+              <span class="badge bg-warning text-dark small">{{ rec.get('Categoría', '') }}</span>
+            </div>
+            <div class="fw-600 text-primary">$ {{ rec.get('Monto','') }}</div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
   {% endfor %}
 {% else %}
   <div class="text-center py-5">

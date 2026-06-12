@@ -52,9 +52,15 @@ HEADERS = {
         "Dirección Destino",
         "Ciudad Destino",
         "Tel. Destino",
-        "Artículos",
         "Peso Total (kg)",
         "Observaciones",
+        # Columnas de artículo (una fila por artículo)
+        "Nº Línea",
+        "Artículo (Código)",
+        "Descripción",
+        "Cant. Enviada",
+        "Peso Ind. (kg)",
+        "Peso Total Art. (kg)",
     ],
     "TICKETS": [
         "Fecha Registro",
@@ -146,7 +152,11 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
                 data.get("observaciones", ""),
             ]
         elif sheet_name == "REMITOS":
-            row = [
+            # Parsear artículos: una línea por artículo en Sheets
+            articulos_raw = data.get("articulos", "")
+            lineas = [l.strip() for l in articulos_raw.splitlines() if l.strip()] or [""]
+
+            base = [
                 now,
                 data.get("fecha", ""),
                 data.get("orden_salida", ""),
@@ -159,10 +169,21 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
                 data.get("destino_direccion", ""),
                 data.get("destino_ciudad", ""),
                 data.get("destino_telefono", ""),
-                data.get("articulos", ""),
                 data.get("peso_total", ""),
                 data.get("observaciones", ""),
             ]
+
+            # Separar cada columna del artículo: NºLinea|Artículo|Descripción|Cant|Peso ind.|Peso
+            for linea in lineas:
+                partes = [p.strip() for p in linea.split("|")]
+                while len(partes) < 6:
+                    partes.append("")
+                row = base + partes[:6]
+                ws.append_row(row, value_input_option="USER_ENTERED")
+
+            total_rows = len(ws.get_all_values())
+            return {"success": True, "row": total_rows}
+
         else:  # TICKETS
             row = [
                 now,
