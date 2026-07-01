@@ -40,7 +40,21 @@ def detect_doc_type(text: str) -> str:
         1 if any(w in t for w in ['estacionamiento', 'parking']) else 0,
     ])
 
-    scores = {'REMITO': remito_score, 'FACTURA': factura_score, 'TICKET': ticket_score}
+    comprobante_score = sum([
+        5 if 'comprobante para compania de seguro' in t or 'comprobante para compañía de seguro' in t else 0,
+        4 if 'costo reposicion' in t or 'costo reposición' in t else 0,
+        3 if 'numero serie' in t or 'número serie' in t else 0,
+        2 if 'sale' in t and 'vuelve' in t else 0,
+        2 if 'cliente:' in t else 0,
+        1 if 'usd' in t else 0,
+    ])
+
+    scores = {
+        'REMITO': remito_score,
+        'FACTURA': factura_score,
+        'TICKET': ticket_score,
+        'COMPROBANTE': comprobante_score,
+    }
     best = max(scores, key=scores.get)
     return best if scores[best] > 0 else 'FACTURA'
 
@@ -58,6 +72,7 @@ def parse_document(text: str, doc_type: str) -> dict:
         "FACTURA": _parse_factura,
         "REMITO":  _parse_remito,
         "TICKET":  _parse_ticket,
+        "COMPROBANTE": _parse_comprobante,
     }
     parser = parsers.get(doc_type.upper(), _parse_ticket)
     data = parser(text)
@@ -226,6 +241,138 @@ def _parse_ticket(text: str) -> dict:
     }
 
 
+def _parse_comprobante(text: str) -> dict:
+    numero = (
+        _re_first(text, r'N[°º]\s*([0-9]{3,5}\s*[-/]\s*[0-9]{3,8})', 1, re.IGNORECASE)
+        .replace(" ", "")
+    )
+    fecha = _find_date(text)
+    cliente = _re_first(text, r'Cliente\s*:\s*([^\n\r]+)', 1, re.IGNORECASE)
+    total = _find_last_usd_total(text)
+
+    resumen_items, detalle_items = _extract_comprobante_items(text)
+
+    cantidad_total = 0
+    for item in resumen_items:
+        try:
+            cantidad_total += int(item.get("cantidad", "0") or "0")
+        except ValueError:
+            pass
+
+    resumen_lines = [
+        " | ".join([
+            item.get("cantidad", ""),
+            item.get("detalle", ""),
+            item.get("numero_serie", ""),
+            item.get("costo_reposicion", ""),
+        ])
+        for item in resumen_items
+    ]
+
+    detalle_lines = [
+        " | ".join([
+            item.get("tipo", ""),
+            item.get("linea_padre", ""),
+            item.get("cantidad", ""),
+            item.get("detalle", ""),
+            item.get("numero_serie", ""),
+            item.get("costo_reposicion", ""),
+        ])
+        for item in detalle_items
+    ]
+
+    return {
+        "fecha": fecha,
+        "comprobante_numero": numero,
+        "cliente": cliente,
+        "cantidad_total": str(cantidad_total),
+        "total_usd": total,
+        "comp_resumen_lineas": "\n".join(resumen_lines),
+        "comp_detalle_lineas": "\n".join(detalle_lines),
+        "observaciones": "",
+    }
+
+
+def _find_last_usd_total(text: str) -> str:
+    matches = re.findall(r'USD\s*([0-9\.,]+)', text, re.IGNORECASE)
+    return matches[-1] if matches else ""
+
+
+def _extract_serial_candidate(text: str) -> str:
+    m = re.search(r'((?=[A-Z0-9\.\-]*\d)[A-Z0-9\.\-]{6,})\s*$', text, re.IGNORECASE)
+    return m.group(1) if m else ""
+
+
+def _extract_comprobante_items(text: str) -> tuple[list[dict], list[dict]]:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+
+    in_table = False
+    resumen_items = []
+    detalle_items = []
+    parent_idx = 0
+
+    for raw in lines:
+        line = re.sub(r'\s{2,}', '  ', raw)
+
+        if not in_table and re.search(r'\bcant\b.*\bdetalle\b.*\bserie\b', line, re.IGNORECASE):
+            in_table = True
+            continue
+
+        if not in_table:
+            continue
+
+        if re.search(r'^total\b', line, re.IGNORECASE):
+            break
+
+        cost = _re_first(line, r'USD\s*([0-9\.,]+)\s*$', 1, re.IGNORECASE)
+        line_wo_cost = re.sub(r'\s*USD\s*[0-9\.,]+\s*$', '', line, flags=re.IGNORECASE)
+
+        main_match = re.match(r'^(\d{1,3})\s+(.+)$', line_wo_cost)
+        if main_match:
+            qty = main_match.group(1).strip()
+            content = main_match.group(2).strip()
+            serial = _extract_serial_candidate(content)
+            detail = content
+            if serial:
+                detail = re.sub(r'\s*(?=[A-Z0-9\.\-]*\d)[A-Z0-9\.\-]{6,}\s*$', '', detail).strip()
+
+            parent_idx += 1
+            resumen_items.append({
+                "cantidad": qty,
+                "detalle": detail,
+                "numero_serie": serial,
+                "costo_reposicion": cost,
+                "linea_padre": str(parent_idx),
+            })
+            detalle_items.append({
+                "tipo": "ARTICULO",
+                "linea_padre": str(parent_idx),
+                "cantidad": qty,
+                "detalle": detail,
+                "numero_serie": serial,
+                "costo_reposicion": cost,
+            })
+            continue
+
+        if parent_idx > 0:
+            serial = _extract_serial_candidate(line_wo_cost)
+            detail = line_wo_cost
+            if serial:
+                detail = re.sub(r'\s*(?=[A-Z0-9\.\-]*\d)[A-Z0-9\.\-]{6,}\s*$', '', detail).strip()
+            detail = detail.lstrip('.').strip('-').strip()
+            if detail:
+                detalle_items.append({
+                    "tipo": "SUBARTICULO",
+                    "linea_padre": str(parent_idx),
+                    "cantidad": "",
+                    "detalle": detail,
+                    "numero_serie": serial,
+                    "costo_reposicion": "",
+                })
+
+    return resumen_items, detalle_items
+
+
 # ---------------------------------------------------------------------------
 # Helpers de extracción
 # ---------------------------------------------------------------------------
@@ -235,12 +382,16 @@ def _find_date(text: str) -> str:
     patterns = [
         r"\b(\d{2}[/\-]\d{2}[/\-]\d{4})\b",
         r"\b(\d{4}[/\-]\d{2}[/\-]\d{2})\b",
+        r"\b(\d{2}\s+\d{2}\s+\d{4})\b",
         r"\b(\d{2}\s+de\s+\w+\s+de\s+\d{4})\b",
     ]
     for pat in patterns:
         m = re.search(pat, text, re.IGNORECASE)
         if m:
-            return m.group(1)
+            found = m.group(1).strip()
+            if re.match(r"^\d{2}\s+\d{2}\s+\d{4}$", found):
+                return re.sub(r"\s+", "/", found)
+            return found
     return ""
 
 

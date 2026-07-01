@@ -22,7 +22,11 @@
     </div>
     <div class="ds-card-body">
       <div class="doc-grid">
-        <button class="doc-btn active" data-type="FACTURA" onclick="selectType(this)">
+        <button class="doc-btn active" data-type="AUTO" onclick="selectType(this)">
+          <span class="doc-icon">🤖</span>
+          <span class="doc-label">Auto</span>
+        </button>
+        <button class="doc-btn" data-type="FACTURA" onclick="selectType(this)">
           <span class="doc-icon">🧾</span>
           <span class="doc-label">Factura</span>
         </button>
@@ -33,6 +37,10 @@
         <button class="doc-btn" data-type="TICKET" onclick="selectType(this)">
           <span class="doc-icon">🎫</span>
           <span class="doc-label">Ticket</span>
+        </button>
+        <button class="doc-btn" data-type="COMPROBANTE" onclick="selectType(this)">
+          <span class="doc-icon">📄</span>
+          <span class="doc-label">Comprobante</span>
         </button>
       </div>
     </div>

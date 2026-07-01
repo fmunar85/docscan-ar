@@ -6,7 +6,7 @@
 
 /* ── Estado global ──────────────────────────────────────────── */
 let selectedFile = null;
-let currentDocType = 'FACTURA';
+let currentDocType = 'AUTO';
 
 /* ── Init ───────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -165,7 +165,7 @@ function renderResultForm(data, docType) {
   const view = document.getElementById('viewResult');
   view.classList.remove('d-none');
 
-  const docIcon  = { FACTURA: '🧾', REMITO: '📦', TICKET: '🎫' }[docType] || '📄';
+  const docIcon  = { AUTO: '🤖', FACTURA: '🧾', REMITO: '📦', TICKET: '🎫', COMPROBANTE: '📄' }[docType] || '📄';
   const docColor = { FACTURA: 'primary', REMITO: 'success', TICKET: 'warning' }[docType] || 'secondary';
 
   view.innerHTML = `
@@ -206,7 +206,45 @@ function renderResultForm(data, docType) {
 function buildFields(d, docType) {
   if (docType === 'FACTURA') return buildFactura(d);
   if (docType === 'REMITO')  return buildRemito(d);
+  if (docType === 'COMPROBANTE') return buildComprobante(d);
   return buildTicket(d);
+}
+
+function buildComprobante(d) {
+  return `
+    <div class="field-row mb-3">
+      <div>
+        <label class="form-label">Fecha</label>
+        <input class="form-control" id="f_fecha" value="${esc(d.fecha || '')}" placeholder="DD/MM/AAAA" />
+      </div>
+      <div>
+        <label class="form-label">Comprobante Nº</label>
+        <input class="form-control" id="f_comprobante_numero" value="${esc(d.comprobante_numero || '')}" />
+      </div>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Cliente</label>
+      <input class="form-control" id="f_cliente" value="${esc(d.cliente || '')}" />
+    </div>
+    <div class="field-row mb-3">
+      <div>
+        <label class="form-label">Cantidad Total</label>
+        <input class="form-control" id="f_cantidad_total" value="${esc(d.cantidad_total || '')}" inputmode="numeric" />
+      </div>
+      <div>
+        <label class="form-label">Total USD</label>
+        <input class="form-control" id="f_total_usd" value="${esc(d.total_usd || '')}" />
+      </div>
+    </div>
+
+    <div class="ds-section-label">📌 Comp. Resumen (1 línea por artículo)</div>
+    <div class="text-muted mb-2" style="font-size:.76rem">Cantidad | Detalle | Número Serie | Costo Reposición</div>
+    <textarea class="form-control mb-3" id="f_comp_resumen_lineas" rows="7" style="font-family:monospace;font-size:.81rem;white-space:pre">${esc(d.comp_resumen_lineas || '')}</textarea>
+
+    <div class="ds-section-label">📋 Comp. Detalle (1 línea por artículo/sub-artículo)</div>
+    <div class="text-muted mb-2" style="font-size:.76rem">Tipo | Línea Padre | Cantidad | Detalle | Número Serie | Costo Reposición</div>
+    <textarea class="form-control" id="f_comp_detalle_lineas" rows="10" style="font-family:monospace;font-size:.81rem;white-space:pre">${esc(d.comp_detalle_lineas || '')}</textarea>
+  `;
 }
 
 function buildFactura(d) {

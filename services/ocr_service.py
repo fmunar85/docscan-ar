@@ -202,6 +202,19 @@ Analizá esta imagen de un ticket/comprobante y extraé los datos. Devolvé ÚNI
 }
 Detectá la categoría según el contexto: YPF/Shell/Axion/Puma=NAFTA, Autopista=PEAJE, etc.
 Si algún campo no está visible, dejalo vacío (""). Devolvé solo el JSON.""",
+
+        "COMPROBANTE": """Analizá este comprobante y devolvé SOLO JSON con:
+{
+    "fecha": "DD/MM/YYYY",
+    "comprobante_numero": "001-00017",
+    "cliente": "",
+    "cantidad_total": "",
+    "total_usd": "",
+    "comp_resumen_lineas": "cantidad | detalle | numero serie | costo reposicion\\n...",
+    "comp_detalle_lineas": "tipo | linea padre | cantidad | detalle | numero serie | costo reposicion\\n...",
+    "observaciones": ""
+}
+Una línea por artículo en resumen y una por artículo/sub-artículo en detalle.""",
 }
 
 

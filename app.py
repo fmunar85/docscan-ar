@@ -38,7 +38,7 @@ def process():
         return jsonify({"success": False, "error": "No se seleccionó ningún archivo"}), 400
 
     file = request.files["file"]
-    doc_type = request.form.get("doc_type", "FACTURA").upper()
+    doc_type = request.form.get("doc_type", "AUTO").upper()
 
     if not file or file.filename == "":
         return jsonify({"success": False, "error": "Archivo vacío"}), 400
@@ -56,7 +56,8 @@ def process():
     try:
         from services.ocr_service import process_document
         result = process_document(filepath, doc_type)
-        return jsonify({"success": True, "data": result, "doc_type": doc_type})
+        detected_type = result.get("tipo", doc_type)
+        return jsonify({"success": True, "data": result, "doc_type": detected_type})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:

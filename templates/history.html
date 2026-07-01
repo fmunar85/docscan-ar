@@ -17,6 +17,10 @@
      class="btn flex-fill {{ 'btn-warning text-dark' if doc_type == 'TICKET' else 'btn-outline-warning' }}">
     🎫 Tickets
   </a>
+  <a href="/history?type=COMPROBANTE"
+     class="btn flex-fill {{ 'btn-dark' if doc_type == 'COMPROBANTE' else 'btn-outline-dark' }}">
+    📄 Comp.
+  </a>
 </div>
 
 <!-- Lista de registros -->
@@ -89,6 +93,27 @@
             <div class="text-end">
               <div class="fw-600 text-primary">$ {{ rec.get('Total','') }}</div>
               <div class="text-muted" style="font-size:.7rem">{{ rec.get('Fecha Registro','') }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    {% elif doc_type == 'COMPROBANTE' %}
+      <div class="ds-card mb-2">
+        <div class="ds-card-body py-3">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div class="fw-600">N° {{ rec.get('Comprobante Nº', '—') }}</div>
+              <div class="text-muted small">Cliente: {{ rec.get('Cliente', '') }}</div>
+              <div class="text-muted small">{{ rec.get('Fecha Doc.', '') }}</div>
+              <div class="small mt-1">{{ rec.get('Cantidad', '') }} × {{ rec.get('Detalle', '') }}</div>
+              {% if rec.get('Número Serie') %}
+              <div class="text-muted small">Serie: {{ rec.get('Número Serie') }}</div>
+              {% endif %}
+            </div>
+            <div class="text-end">
+              <div class="fw-600 text-primary">USD {{ rec.get('Costo Reposición', '') }}</div>
+              <div class="text-muted" style="font-size:.72rem">Total: USD {{ rec.get('Total USD', '') }}</div>
             </div>
           </div>
         </div>

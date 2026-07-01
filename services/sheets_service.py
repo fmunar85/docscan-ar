@@ -71,6 +71,32 @@ HEADERS = {
         "Monto",
         "Observaciones",
     ],
+    "COMP_RESUMEN": [
+        "Fecha Registro",
+        "Fecha Doc.",
+        "Comprobante Nº",
+        "Cliente",
+        "Cantidad Total",
+        "Total USD",
+        "Cantidad",
+        "Detalle",
+        "Número Serie",
+        "Costo Reposición",
+        "Observaciones",
+    ],
+    "COMP_DETALLE": [
+        "Fecha Registro",
+        "Fecha Doc.",
+        "Comprobante Nº",
+        "Cliente",
+        "Tipo Línea",
+        "Línea Padre",
+        "Cantidad",
+        "Detalle",
+        "Número Serie",
+        "Costo Reposición",
+        "Observaciones",
+    ],
 }
 
 # Mapeo tipo → nombre hoja
@@ -78,6 +104,7 @@ SHEET_MAP = {
     "FACTURA": "FACTURAS",
     "REMITO":  "REMITOS",
     "TICKET":  "TICKETS",
+    "COMPROBANTE": "COMP_RESUMEN",
 }
 
 
@@ -182,6 +209,50 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
                 ws.append_row(row, value_input_option="USER_ENTERED")
 
             total_rows = len(ws.get_all_values())
+            return {"success": True, "row": total_rows}
+
+        elif doc_type.upper() == "COMPROBANTE":
+            ws_resumen = _get_worksheet(spreadsheet, "COMP_RESUMEN")
+            ws_detalle = _get_worksheet(spreadsheet, "COMP_DETALLE")
+
+            resumen_lineas = [
+                line.strip() for line in data.get("comp_resumen_lineas", "").splitlines() if line.strip()
+            ] or [""]
+            detalle_lineas = [
+                line.strip() for line in data.get("comp_detalle_lineas", "").splitlines() if line.strip()
+            ] or [""]
+
+            resumen_base = [
+                now,
+                data.get("fecha", ""),
+                data.get("comprobante_numero", ""),
+                data.get("cliente", ""),
+                data.get("cantidad_total", ""),
+                data.get("total_usd", ""),
+            ]
+
+            for linea in resumen_lineas:
+                partes = [p.strip() for p in linea.split("|")]
+                while len(partes) < 4:
+                    partes.append("")
+                row = resumen_base + partes[:4] + [data.get("observaciones", "")]
+                ws_resumen.append_row(row, value_input_option="USER_ENTERED")
+
+            detalle_base = [
+                now,
+                data.get("fecha", ""),
+                data.get("comprobante_numero", ""),
+                data.get("cliente", ""),
+            ]
+
+            for linea in detalle_lineas:
+                partes = [p.strip() for p in linea.split("|")]
+                while len(partes) < 6:
+                    partes.append("")
+                row = detalle_base + partes[:6] + [data.get("observaciones", "")]
+                ws_detalle.append_row(row, value_input_option="USER_ENTERED")
+
+            total_rows = len(ws_resumen.get_all_values())
             return {"success": True, "row": total_rows}
 
         else:  # TICKETS
