@@ -226,6 +226,10 @@ function buildComprobante(d) {
       <label class="form-label">Cliente</label>
       <input class="form-control" id="f_cliente" value="${esc(d.cliente || '')}" />
     </div>
+    <div class="mb-3">
+      <label class="form-label">Dirección</label>
+      <input class="form-control" id="f_direccion" value="${esc(d.direccion || '')}" />
+    </div>
     <div class="field-row mb-3">
       <div>
         <label class="form-label">Cantidad Total</label>

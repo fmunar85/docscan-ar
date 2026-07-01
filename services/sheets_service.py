@@ -8,6 +8,7 @@ Las credenciales se pasan como JSON en GOOGLE_CREDENTIALS_JSON
 import os
 import json
 import tempfile
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -76,6 +77,7 @@ HEADERS = {
         "Fecha Doc.",
         "Comprobante Nº",
         "Cliente",
+        "Dirección",
         "Cantidad Total",
         "Total USD",
         "Cantidad",
@@ -89,6 +91,7 @@ HEADERS = {
         "Fecha Doc.",
         "Comprobante Nº",
         "Cliente",
+        "Dirección",
         "Tipo Línea",
         "Línea Padre",
         "Cantidad",
@@ -106,6 +109,48 @@ SHEET_MAP = {
     "TICKET":  "TICKETS",
     "COMPROBANTE": "COMP_RESUMEN",
 }
+
+
+def _clean_sheet_title(value: str) -> str:
+    """Limpia texto para usarlo como título de pestaña en Google Sheets."""
+    if not value:
+        return "SIN_NUMERO"
+    cleaned = re.sub(r"[\[\]\*\?/\\:]", "_", str(value).strip())
+    cleaned = re.sub(r"\s+", "_", cleaned)
+    cleaned = re.sub(r"_+", "_", cleaned)
+    return cleaned[:70] if cleaned else "SIN_NUMERO"
+
+
+def _get_doc_number(data: dict, doc_type: str) -> str:
+    dt = doc_type.upper()
+    if dt == "FACTURA":
+        return data.get("numero", "")
+    if dt == "REMITO":
+        return data.get("orden_salida", data.get("numero", ""))
+    if dt == "COMPROBANTE":
+        return data.get("comprobante_numero", "")
+    return data.get("numero", "")
+
+
+def _ensure_doc_tab(spreadsheet, data: dict, doc_type: str) -> gspread.Worksheet:
+    """Crea/obtiene una pestaña por documento: DOC_<TIPO>_<NUMERO>."""
+    numero = _clean_sheet_title(_get_doc_number(data, doc_type))
+    tipo = doc_type.upper()
+    prefix = "COMP" if tipo == "COMPROBANTE" else tipo
+    title = f"DOC_{prefix}_{numero}"
+
+    try:
+        return spreadsheet.worksheet(title)
+    except gspread.WorksheetNotFound:
+        return spreadsheet.add_worksheet(title=title[:99], rows=3000, cols=30)
+
+
+def _write_doc_snapshot(ws_doc: gspread.Worksheet, headers: list[str], rows: list[list]):
+    """Escribe snapshot completo en pestaña por documento (limpia y vuelve a generar)."""
+    ws_doc.clear()
+    ws_doc.append_row(headers, value_input_option="USER_ENTERED")
+    for row in rows:
+        ws_doc.append_row(row, value_input_option="USER_ENTERED")
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +223,14 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
                 data.get("vencimiento_cae", ""),
                 data.get("observaciones", ""),
             ]
+            ws.append_row(row, value_input_option="USER_ENTERED")
+
+            ws_doc = _ensure_doc_tab(spreadsheet, data, "FACTURA")
+            headers = HEADERS["FACTURAS"]
+            _write_doc_snapshot(ws_doc, headers, [row])
+
+            total_rows = len(ws.get_all_values())
+            return {"success": True, "row": total_rows}
         elif sheet_name == "REMITOS":
             # Parsear artículos: una línea por artículo en Sheets
             articulos_raw = data.get("articulos", "")
@@ -201,12 +254,18 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
             ]
 
             # Separar cada columna del artículo: NºLinea|Artículo|Descripción|Cant|Peso ind.|Peso
+            rows_remito = []
             for linea in lineas:
                 partes = [p.strip() for p in linea.split("|")]
                 while len(partes) < 6:
                     partes.append("")
                 row = base + partes[:6]
                 ws.append_row(row, value_input_option="USER_ENTERED")
+                rows_remito.append(row)
+
+            ws_doc = _ensure_doc_tab(spreadsheet, data, "REMITO")
+            headers = HEADERS["REMITOS"]
+            _write_doc_snapshot(ws_doc, headers, rows_remito)
 
             total_rows = len(ws.get_all_values())
             return {"success": True, "row": total_rows}
@@ -227,30 +286,41 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
                 data.get("fecha", ""),
                 data.get("comprobante_numero", ""),
                 data.get("cliente", ""),
+                data.get("direccion", ""),
                 data.get("cantidad_total", ""),
                 data.get("total_usd", ""),
             ]
 
+            rows_resumen = []
             for linea in resumen_lineas:
                 partes = [p.strip() for p in linea.split("|")]
                 while len(partes) < 4:
                     partes.append("")
                 row = resumen_base + partes[:4] + [data.get("observaciones", "")]
                 ws_resumen.append_row(row, value_input_option="USER_ENTERED")
+                rows_resumen.append(row)
 
             detalle_base = [
                 now,
                 data.get("fecha", ""),
                 data.get("comprobante_numero", ""),
                 data.get("cliente", ""),
+                data.get("direccion", ""),
             ]
 
+            rows_detalle = []
             for linea in detalle_lineas:
                 partes = [p.strip() for p in linea.split("|")]
                 while len(partes) < 6:
                     partes.append("")
                 row = detalle_base + partes[:6] + [data.get("observaciones", "")]
                 ws_detalle.append_row(row, value_input_option="USER_ENTERED")
+                rows_detalle.append(row)
+
+            ws_doc = _ensure_doc_tab(spreadsheet, data, "COMPROBANTE")
+            headers_doc = ["SECCION"] + HEADERS["COMP_RESUMEN"]
+            rows_doc = [["RESUMEN"] + r for r in rows_resumen] + [["DETALLE"] + r for r in rows_detalle]
+            _write_doc_snapshot(ws_doc, headers_doc, rows_doc)
 
             total_rows = len(ws_resumen.get_all_values())
             return {"success": True, "row": total_rows}
@@ -265,10 +335,14 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
                 data.get("monto", ""),
                 data.get("observaciones", ""),
             ]
+            ws.append_row(row, value_input_option="USER_ENTERED")
 
-        ws.append_row(row, value_input_option="USER_ENTERED")
-        total_rows = len(ws.get_all_values())
-        return {"success": True, "row": total_rows}
+            ws_doc = _ensure_doc_tab(spreadsheet, data, "TICKET")
+            headers = HEADERS["TICKETS"]
+            _write_doc_snapshot(ws_doc, headers, [row])
+
+            total_rows = len(ws.get_all_values())
+            return {"success": True, "row": total_rows}
 
     except Exception as e:
         print(f"[sheets_service] Error: {e}")

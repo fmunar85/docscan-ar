@@ -105,6 +105,9 @@
             <div>
               <div class="fw-600">N° {{ rec.get('Comprobante Nº', '—') }}</div>
               <div class="text-muted small">Cliente: {{ rec.get('Cliente', '') }}</div>
+              {% if rec.get('Dirección') %}
+              <div class="text-muted small">Dirección: {{ rec.get('Dirección') }}</div>
+              {% endif %}
               <div class="text-muted small">{{ rec.get('Fecha Doc.', '') }}</div>
               <div class="small mt-1">{{ rec.get('Cantidad', '') }} × {{ rec.get('Detalle', '') }}</div>
               {% if rec.get('Número Serie') %}

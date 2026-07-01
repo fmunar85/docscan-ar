@@ -247,7 +247,7 @@ def _parse_comprobante(text: str) -> dict:
         .replace(" ", "")
     )
     fecha = _find_date(text)
-    cliente = _re_first(text, r'Cliente\s*:\s*([^\n\r]+)', 1, re.IGNORECASE)
+    cliente, direccion = _extract_cliente_direccion(text)
     total = _find_last_usd_total(text)
 
     resumen_items, detalle_items = _extract_comprobante_items(text)
@@ -285,6 +285,7 @@ def _parse_comprobante(text: str) -> dict:
         "fecha": fecha,
         "comprobante_numero": numero,
         "cliente": cliente,
+        "direccion": direccion,
         "cantidad_total": str(cantidad_total),
         "total_usd": total,
         "comp_resumen_lineas": "\n".join(resumen_lines),
@@ -296,6 +297,28 @@ def _parse_comprobante(text: str) -> dict:
 def _find_last_usd_total(text: str) -> str:
     matches = re.findall(r'USD\s*([0-9\.,]+)', text, re.IGNORECASE)
     return matches[-1] if matches else ""
+
+
+def _extract_cliente_direccion(text: str) -> tuple[str, str]:
+    cliente_line = _re_first(text, r'Cliente\s*:\s*([^\n\r]+)', 1, re.IGNORECASE)
+    direccion_line = _re_first(text, r'Direcci[oó]n\s*:\s*([^\n\r]+)', 1, re.IGNORECASE)
+
+    cliente = cliente_line
+    direccion = direccion_line
+
+    if cliente_line and re.search(r'Direcci[oó]n\s*:', cliente_line, re.IGNORECASE):
+        parts = re.split(r'Direcci[oó]n\s*:\s*', cliente_line, maxsplit=1, flags=re.IGNORECASE)
+        cliente = parts[0]
+        if len(parts) > 1 and not direccion:
+            direccion = parts[1]
+
+    cliente = re.sub(r'\s+', ' ', (cliente or '')).strip(' .:-')
+    direccion = re.sub(r'\s+', ' ', (direccion or '')).strip(' .:-')
+
+    if direccion in ('', '-', '.', '·'):
+        direccion = ''
+
+    return cliente, direccion
 
 
 def _extract_serial_candidate(text: str) -> str:
@@ -360,6 +383,7 @@ def _extract_comprobante_items(text: str) -> tuple[list[dict], list[dict]]:
             if serial:
                 detail = re.sub(r'\s*(?=[A-Z0-9\.\-]*\d)[A-Z0-9\.\-]{6,}\s*$', '', detail).strip()
             detail = detail.lstrip('.').strip('-').strip()
+            detail = re.sub(r'^\:+', '', detail).strip()
             if detail:
                 detalle_items.append({
                     "tipo": "SUBARTICULO",
