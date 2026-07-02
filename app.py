@@ -1,7 +1,8 @@
 import os
 import uuid
 import json
-from flask import Flask, render_template, request, jsonify
+from io import BytesIO
+from flask import Flask, render_template, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
@@ -84,6 +85,34 @@ def save():
         if result["success"]:
             return jsonify({"success": True, "message": f"✅ Guardado en hoja {doc_type}", "row": result.get("row")})
         return jsonify({"success": False, "error": result.get("error", "Error desconocido")}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/export-local", methods=["POST"])
+def export_local():
+    """Genera archivo local descargable (XLSX/CSV) con los datos del documento."""
+    payload = request.get_json(silent=True)
+    if not payload:
+        return jsonify({"success": False, "error": "Payload inválido"}), 400
+
+    doc_type = payload.get("doc_type", "FACTURA").upper()
+    doc_data = payload.get("data", {})
+    file_format = payload.get("format", "xlsx")
+
+    try:
+        from services.local_export_service import build_local_export
+
+        result = build_local_export(doc_data, doc_type, file_format)
+        if not result.get("success"):
+            return jsonify({"success": False, "error": result.get("error", "Error exportando")}), 500
+
+        return send_file(
+            BytesIO(result["bytes"]),
+            as_attachment=True,
+            download_name=result["filename"],
+            mimetype=result["mimetype"],
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

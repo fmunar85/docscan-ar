@@ -12,6 +12,7 @@ pdfplumber==0.11.0
 # Imagen y OCR local
 Pillow==10.3.0
 pytesseract==0.3.13
+openpyxl==3.1.5
 
 # Seguridad
 Werkzeug==3.0.3

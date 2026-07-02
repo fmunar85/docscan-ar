@@ -189,8 +189,14 @@ function renderResultForm(data, docType) {
           <textarea class="form-control" id="f_observaciones" rows="2">${esc(data.observaciones || '')}</textarea>
         </div>
         <div class="d-grid gap-2 mt-4">
-          <button class="btn btn-success btn-lg" onclick="saveData('${docType}')">
+          <button class="btn btn-success btn-lg" onclick="saveToSheets('${docType}')">
             <i class="fas fa-save me-2"></i>Guardar en Google Sheets
+          </button>
+          <button class="btn btn-primary btn-lg" onclick="exportLocal('${docType}', 'xlsx')">
+            <i class="fas fa-file-excel me-2"></i>Guardar local (Excel)
+          </button>
+          <button class="btn btn-outline-primary" onclick="exportLocal('${docType}', 'csv')">
+            <i class="fas fa-file-csv me-2"></i>Guardar local (CSV)
           </button>
           <button class="btn btn-outline-secondary" onclick="backToUpload()">
             <i class="fas fa-arrow-left me-2"></i>Volver
@@ -411,12 +417,17 @@ function buildTicket(d) {
     </div>`;
 }
 
-/* ── Guardar en Sheets ──────────────────────────────────────── */
-async function saveData(docType) {
+function collectFormData() {
   const data = {};
   document.querySelectorAll('[id^="f_"]').forEach(el => {
     data[el.id.slice(2)] = el.value.trim();
   });
+  return data;
+}
+
+/* ── Guardar en Sheets ──────────────────────────────────────── */
+async function saveToSheets(docType) {
+  const data = collectFormData();
 
   showLoading('Guardando en Google Sheets…', 'Enviando datos 📊');
 
@@ -438,6 +449,61 @@ async function saveData(docType) {
     hideLoading();
     showToast('❌ Error: ' + err.message, 'danger');
   }
+}
+
+async function exportLocal(docType, format) {
+  const data = collectFormData();
+  const isCsv = (format || '').toLowerCase() === 'csv';
+
+  showLoading(
+    isCsv ? 'Generando CSV local…' : 'Generando Excel local…',
+    'Preparando archivo para descargar 💾'
+  );
+
+  try {
+    const res = await fetch('/export-local', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ doc_type: docType, data, format }),
+    });
+
+    if (!res.ok) {
+      let message = `Error ${res.status}`;
+      try {
+        const errJson = await res.json();
+        message = errJson.error || message;
+      } catch (_) {}
+      throw new Error(message);
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+
+    let filename = `documento.${isCsv ? 'csv' : 'xlsx'}`;
+    const contentDisposition = res.headers.get('content-disposition') || '';
+    const match = contentDisposition.match(/filename\*?=(?:UTF-8''|\")?([^\";\n]+)/i);
+    if (match && match[1]) {
+      filename = decodeURIComponent(match[1].replace(/\"/g, '').trim());
+    }
+
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    hideLoading();
+    showToast(`✅ Archivo descargado: ${filename}`, 'success');
+  } catch (err) {
+    hideLoading();
+    showToast('❌ Error al exportar: ' + err.message, 'danger');
+  }
+}
+
+async function saveData(docType) {
+  return saveToSheets(docType);
 }
 
 /* ── Pantalla de éxito ──────────────────────────────────────── */
