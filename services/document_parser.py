@@ -263,8 +263,6 @@ def _parse_comprobante(text: str) -> dict:
         " | ".join([
             item.get("cantidad", ""),
             item.get("detalle", ""),
-            item.get("numero_serie", ""),
-            item.get("costo_reposicion", ""),
         ])
         for item in resumen_items
     ]
@@ -277,6 +275,7 @@ def _parse_comprobante(text: str) -> dict:
             item.get("detalle", ""),
             item.get("numero_serie", ""),
             item.get("costo_reposicion", ""),
+            item.get("raw_line", ""),
         ])
         for item in detalle_items
     ]
@@ -366,6 +365,7 @@ def _extract_comprobante_items(text: str) -> tuple[list[dict], list[dict]]:
                 "numero_serie": serial,
                 "costo_reposicion": cost,
                 "linea_padre": str(parent_idx),
+                "raw_line": raw,
             })
             detalle_items.append({
                 "tipo": "ARTICULO",
@@ -374,6 +374,7 @@ def _extract_comprobante_items(text: str) -> tuple[list[dict], list[dict]]:
                 "detalle": detail,
                 "numero_serie": serial,
                 "costo_reposicion": cost,
+                "raw_line": raw,
             })
             continue
 
@@ -392,6 +393,7 @@ def _extract_comprobante_items(text: str) -> tuple[list[dict], list[dict]]:
                     "detalle": detail,
                     "numero_serie": serial,
                     "costo_reposicion": "",
+                    "raw_line": raw,
                 })
 
     return resumen_items, detalle_items

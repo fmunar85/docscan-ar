@@ -9,11 +9,14 @@ import os
 import json
 import tempfile
 import re
+import time
 from datetime import datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import gspread
 from google.oauth2.service_account import Credentials
+from gspread.exceptions import APIError
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -81,9 +84,7 @@ HEADERS = {
         "Cantidad Total",
         "Total USD",
         "Cantidad",
-        "Detalle",
-        "Número Serie",
-        "Costo Reposición",
+        "Nombre Artículo",
         "Observaciones",
     ],
     "COMP_DETALLE": [
@@ -95,9 +96,10 @@ HEADERS = {
         "Tipo Línea",
         "Línea Padre",
         "Cantidad",
-        "Detalle",
+        "Nombre Artículo",
         "Número Serie",
         "Costo Reposición",
+        "Raw OCR",
         "Observaciones",
     ],
 }
@@ -149,8 +151,29 @@ def _write_doc_snapshot(ws_doc: gspread.Worksheet, headers: list[str], rows: lis
     """Escribe snapshot completo en pestaña por documento (limpia y vuelve a generar)."""
     ws_doc.clear()
     ws_doc.append_row(headers, value_input_option="USER_ENTERED")
-    for row in rows:
-        ws_doc.append_row(row, value_input_option="USER_ENTERED")
+    if rows:
+        _append_rows_resilient(ws_doc, rows)
+
+
+def _now_buenos_aires() -> str:
+    return datetime.now(ZoneInfo("America/Argentina/Buenos_Aires")).strftime("%d/%m/%Y %H:%M")
+
+
+def _append_rows_resilient(ws: gspread.Worksheet, rows: list[list], retries: int = 4):
+    if not rows:
+        return
+    wait = 1.0
+    for attempt in range(retries):
+        try:
+            ws.append_rows(rows, value_input_option="USER_ENTERED")
+            return
+        except APIError as e:
+            msg = str(e)
+            if "429" in msg and attempt < retries - 1:
+                time.sleep(wait)
+                wait *= 2
+                continue
+            raise
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +228,7 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
         sheet_name = SHEET_MAP.get(doc_type.upper(), "TICKETS")
         ws = _get_worksheet(spreadsheet, sheet_name)
 
-        now = datetime.now().strftime("%d/%m/%Y %H:%M")
+        now = _now_buenos_aires()
 
         if sheet_name == "FACTURAS":
             row = [
@@ -223,7 +246,7 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
                 data.get("vencimiento_cae", ""),
                 data.get("observaciones", ""),
             ]
-            ws.append_row(row, value_input_option="USER_ENTERED")
+            _append_rows_resilient(ws, [row])
 
             ws_doc = _ensure_doc_tab(spreadsheet, data, "FACTURA")
             headers = HEADERS["FACTURAS"]
@@ -260,8 +283,10 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
                 while len(partes) < 6:
                     partes.append("")
                 row = base + partes[:6]
-                ws.append_row(row, value_input_option="USER_ENTERED")
                 rows_remito.append(row)
+                rows_remito.append(row)
+
+            _append_rows_resilient(ws, rows_remito)
 
             ws_doc = _ensure_doc_tab(spreadsheet, data, "REMITO")
             headers = HEADERS["REMITOS"]
@@ -294,11 +319,12 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
             rows_resumen = []
             for linea in resumen_lineas:
                 partes = [p.strip() for p in linea.split("|")]
-                while len(partes) < 4:
+                while len(partes) < 2:
                     partes.append("")
-                row = resumen_base + partes[:4] + [data.get("observaciones", "")]
-                ws_resumen.append_row(row, value_input_option="USER_ENTERED")
+                row = resumen_base + partes[:2] + [data.get("observaciones", "")]
                 rows_resumen.append(row)
+
+            _append_rows_resilient(ws_resumen, rows_resumen)
 
             detalle_base = [
                 now,
@@ -311,11 +337,12 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
             rows_detalle = []
             for linea in detalle_lineas:
                 partes = [p.strip() for p in linea.split("|")]
-                while len(partes) < 6:
+                while len(partes) < 7:
                     partes.append("")
-                row = detalle_base + partes[:6] + [data.get("observaciones", "")]
-                ws_detalle.append_row(row, value_input_option="USER_ENTERED")
+                row = detalle_base + partes[:7] + [data.get("observaciones", "")]
                 rows_detalle.append(row)
+
+            _append_rows_resilient(ws_detalle, rows_detalle)
 
             ws_doc = _ensure_doc_tab(spreadsheet, data, "COMPROBANTE")
             headers_doc = ["SECCION"] + HEADERS["COMP_RESUMEN"]
@@ -335,7 +362,7 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
                 data.get("monto", ""),
                 data.get("observaciones", ""),
             ]
-            ws.append_row(row, value_input_option="USER_ENTERED")
+            _append_rows_resilient(ws, [row])
 
             ws_doc = _ensure_doc_tab(spreadsheet, data, "TICKET")
             headers = HEADERS["TICKETS"]
