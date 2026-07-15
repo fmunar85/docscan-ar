@@ -1,4 +1,4 @@
-/* ══════════════════════════════════════════════════════════
+﻿/* ══════════════════════════════════════════════════════════
    DocScan AR — app.js
    ══════════════════════════════════════════════════════════ */
 
@@ -247,12 +247,12 @@ function buildComprobante(d) {
       </div>
     </div>
 
-    <div class="ds-section-label">📌 Comp. Resumen (1 línea por artículo)</div>
-    <div class="text-muted mb-2" style="font-size:.76rem">Cantidad | Detalle | Número Serie | Costo Reposición</div>
+    <div class="ds-section-label">📌 Comp. Resumen (1 l&#237;nea por GRUPO)</div>
+    <div class="text-muted mb-2" style="font-size:.76rem">Grupo | Cant. Total | Costo Total USD</div>
     <textarea class="form-control mb-3" id="f_comp_resumen_lineas" rows="7" style="font-family:monospace;font-size:.81rem;white-space:pre">${esc(d.comp_resumen_lineas || '')}</textarea>
 
-    <div class="ds-section-label">📋 Comp. Detalle (1 línea por artículo/sub-artículo)</div>
-    <div class="text-muted mb-2" style="font-size:.76rem">Tipo | Línea Padre | Cantidad | Detalle | Número Serie | Costo Reposición</div>
+    <div class="ds-section-label">📋 Comp. Detalle (1 l&#237;nea por art&#237;culo)</div>
+    <div class="text-muted mb-2" style="font-size:.76rem">Tipo | Línea Padre | Grupo | Cant. Total | Costo Total USD</div>
     <textarea class="form-control" id="f_comp_detalle_lineas" rows="10" style="font-family:monospace;font-size:.81rem;white-space:pre">${esc(d.comp_detalle_lineas || '')}</textarea>
   `;
 }
@@ -565,3 +565,4 @@ function esc(str) {
     .replace(/>/g, '&gt;');
 }
 function escHtml(str) { return esc(str); }
+

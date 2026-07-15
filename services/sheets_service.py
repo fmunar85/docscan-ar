@@ -83,8 +83,9 @@ HEADERS = {
         "Dirección",
         "Cantidad Total",
         "Total USD",
-        "Cantidad",
-        "Nombre Artículo",
+        "Grupo",
+        "Cant. Grupo",
+        "Costo Grupo USD",
         "Observaciones",
     ],
     "COMP_DETALLE": [
@@ -93,6 +94,7 @@ HEADERS = {
         "Comprobante Nº",
         "Cliente",
         "Dirección",
+        "Grupo",
         "Tipo Línea",
         "Línea Padre",
         "Cantidad",
@@ -299,14 +301,16 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
             ws_resumen = _get_worksheet(spreadsheet, "COMP_RESUMEN")
             ws_detalle = _get_worksheet(spreadsheet, "COMP_DETALLE")
 
+            # RESUMEN: Grupo | Cant | Costo
             resumen_lineas = [
-                line.strip() for line in data.get("comp_resumen_lineas", "").splitlines() if line.strip()
+                l.strip() for l in data.get("comp_resumen_lineas", "").splitlines() if l.strip()
             ] or [""]
+            # DETALLE: Grupo | Tipo | LP | Cant | Detalle | Serie | Costo | Raw
             detalle_lineas = [
-                line.strip() for line in data.get("comp_detalle_lineas", "").splitlines() if line.strip()
+                l.strip() for l in data.get("comp_detalle_lineas", "").splitlines() if l.strip()
             ] or [""]
 
-            resumen_base = [
+            res_base = [
                 now,
                 data.get("fecha", ""),
                 data.get("comprobante_numero", ""),
@@ -319,34 +323,34 @@ def save_to_sheet(data: dict, doc_type: str) -> dict:
             rows_resumen = []
             for linea in resumen_lineas:
                 partes = [p.strip() for p in linea.split("|")]
-                while len(partes) < 2:
+                while len(partes) < 3:
                     partes.append("")
-                row = resumen_base + partes[:2] + [data.get("observaciones", "")]
-                rows_resumen.append(row)
+                rows_resumen.append(res_base + partes[:3] + [data.get("observaciones", "")])
 
             _append_rows_resilient(ws_resumen, rows_resumen)
 
-            detalle_base = [
+            det_base = [
                 now,
                 data.get("fecha", ""),
                 data.get("comprobante_numero", ""),
                 data.get("cliente", ""),
                 data.get("direccion", ""),
             ]
-
             rows_detalle = []
             for linea in detalle_lineas:
                 partes = [p.strip() for p in linea.split("|")]
-                while len(partes) < 7:
+                while len(partes) < 8:
                     partes.append("")
-                row = detalle_base + partes[:7] + [data.get("observaciones", "")]
-                rows_detalle.append(row)
+                rows_detalle.append(det_base + partes[:8] + [data.get("observaciones", "")])
 
             _append_rows_resilient(ws_detalle, rows_detalle)
 
             ws_doc = _ensure_doc_tab(spreadsheet, data, "COMPROBANTE")
             headers_doc = ["SECCION"] + HEADERS["COMP_RESUMEN"]
-            rows_doc = [["RESUMEN"] + r for r in rows_resumen] + [["DETALLE"] + r for r in rows_detalle]
+            rows_doc = (
+                [["RESUMEN"] + r for r in rows_resumen]
+                + [["DETALLE"] + r for r in rows_detalle]
+            )
             _write_doc_snapshot(ws_doc, headers_doc, rows_doc)
 
             total_rows = len(ws_resumen.get_all_values())

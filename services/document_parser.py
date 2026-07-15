@@ -243,32 +243,23 @@ def _parse_ticket(text: str) -> dict:
 
 def _parse_comprobante(text: str) -> dict:
     numero = (
-        _re_first(text, r'N[°º]\s*([0-9]{3,5}\s*[-/]\s*[0-9]{3,8})', 1, re.IGNORECASE)
+        _re_first(text, r"N[\u00b0\u00ba]\s*([0-9]{3,5}\s*[-/]\s*[0-9]{3,8})", 1, re.IGNORECASE)
         .replace(" ", "")
     )
-    fecha = _find_date(text)
+    fecha  = _find_date(text)
     cliente, direccion = _extract_cliente_direccion(text)
-    total = _find_last_usd_total(text)
+    total  = _find_last_usd_total(text)
 
-    resumen_items, detalle_items = _extract_comprobante_items(text)
-
-    cantidad_total = 0
-    for item in resumen_items:
-        try:
-            cantidad_total += int(item.get("cantidad", "0") or "0")
-        except ValueError:
-            pass
+    grupos, detalle_items = _extract_comprobante_items(text)
+    cantidad_total = sum(g["cantidad_total"] for g in grupos)
 
     resumen_lines = [
-        " | ".join([
-            item.get("cantidad", ""),
-            item.get("detalle", ""),
-        ])
-        for item in resumen_items
+        f"{g['grupo']} | {g['cantidad_total']} | {g['costo_total_str']}"
+        for g in grupos
     ]
-
     detalle_lines = [
         " | ".join([
+            item.get("grupo", ""),
             item.get("tipo", ""),
             item.get("linea_padre", ""),
             item.get("cantidad", ""),
@@ -279,7 +270,6 @@ def _parse_comprobante(text: str) -> dict:
         ])
         for item in detalle_items
     ]
-
     return {
         "fecha": fecha,
         "comprobante_numero": numero,
@@ -293,11 +283,38 @@ def _parse_comprobante(text: str) -> dict:
     }
 
 
+def _parse_usd_amount(s: str) -> float:
+    """Convierte 'USD 110.000' a float usando convencion argentina (punto=miles)."""
+    if not s:
+        return 0.0
+    import re as _re
+    s = _re.sub(r"USD\s*", "", s, flags=_re.IGNORECASE).strip()
+    s = _re.sub(r"[^\d\.,]", "", s)
+    if not s:
+        return 0.0
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "." in s:
+        after_last = s.rsplit(".", 1)[-1]
+        if len(after_last) == 3:
+            s = s.replace(".", "")
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
+def _format_usd_arg(amount: float) -> str:
+    """Formatea float como USD estilo argentino: USD 110.000"""
+    if amount == 0:
+        return ""
+    integer = int(round(amount))
+    return "USD " + f"{integer:,}".replace(",", ".")
+
+
 def _find_last_usd_total(text: str) -> str:
-    matches = re.findall(r'USD\s*([0-9\.,]+)', text, re.IGNORECASE)
+    matches = re.findall(r"USD\s*([0-9\.,]+)", text, re.IGNORECASE)
     return matches[-1] if matches else ""
-
-
 def _extract_cliente_direccion(text: str) -> tuple[str, str]:
     cliente_line = _re_first(text, r'Cliente\s*:\s*([^\n\r]+)', 1, re.IGNORECASE)
     direccion_line = _re_first(text, r'Direcci[oó]n\s*:\s*([^\n\r]+)', 1, re.IGNORECASE)
@@ -326,82 +343,119 @@ def _extract_serial_candidate(text: str) -> str:
 
 
 def _extract_comprobante_items(text: str) -> tuple[list[dict], list[dict]]:
+    """
+    Detecta grupos (encabezados sin cantidad ni costo = negrita en el doc original)
+    y los items que les pertenecen.
+    Retorna:
+      grupos:        [{grupo, cantidad_total, costo_total_str}, ...]
+      detalle_items: [{grupo, tipo, linea_padre, cantidad, detalle,
+                       numero_serie, costo_reposicion, raw_line}, ...]
+    """
     lines = [line.strip() for line in text.splitlines() if line.strip()]
 
-    in_table = False
-    resumen_items = []
-    detalle_items = []
-    parent_idx = 0
+    in_table          = False
+    grupos            = []
+    detalle_items     = []
+    current_group     = ""
+    current_grp_qty   = 0
+    current_grp_cost  = 0.0
+    linea_padre       = 0
+
+    def flush():
+        if current_group and (current_grp_qty > 0 or current_grp_cost > 0):
+            grupos.append({
+                "grupo":           current_group,
+                "cantidad_total":  current_grp_qty,
+                "costo_total_str": _format_usd_arg(current_grp_cost),
+            })
 
     for raw in lines:
-        line = re.sub(r'\s{2,}', '  ', raw)
+        line = re.sub(r"\s{2,}", "  ", raw)
 
-        if not in_table and re.search(r'\bcant\b.*\bdetalle\b.*\bserie\b', line, re.IGNORECASE):
+        if not in_table and re.search(r"\bcant\b.*\bdetalle\b", line, re.IGNORECASE):
             in_table = True
             continue
 
         if not in_table:
             continue
 
-        if re.search(r'^total\b', line, re.IGNORECASE):
+        if re.search(r"^total\b", line, re.IGNORECASE):
             break
 
-        cost = _re_first(line, r'USD\s*([0-9\.,]+)\s*$', 1, re.IGNORECASE)
-        line_wo_cost = re.sub(r'\s*USD\s*[0-9\.,]+\s*$', '', line, flags=re.IGNORECASE)
+        cost_m       = re.search(r"USD\s*([0-9\.,]+)\s*$", line, re.IGNORECASE)
+        cost_str     = cost_m.group(1) if cost_m else ""
+        cost_val     = _parse_usd_amount(cost_str)
+        line_wo_cost = re.sub(r"\s*USD\s*[0-9\.,]+\s*$", "", line, flags=re.IGNORECASE).strip()
 
-        main_match = re.match(r'^(\d{1,3})\s+(.+)$', line_wo_cost)
-        if main_match:
-            qty = main_match.group(1).strip()
-            content = main_match.group(2).strip()
-            serial = _extract_serial_candidate(content)
-            detail = content
+        qty_match = re.match(r"^(\d{1,3})\s+(.+)$", line_wo_cost)
+
+        if qty_match:
+            # ── Linea de ARTICULO (tiene cantidad numerica) ──
+            qty     = qty_match.group(1).strip()
+            content = qty_match.group(2).strip()
+            serial  = _extract_serial_candidate(content)
+            detail  = content
             if serial:
-                detail = re.sub(r'\s*(?=[A-Z0-9\.\-]*\d)[A-Z0-9\.\-]{6,}\s*$', '', detail).strip()
+                detail = re.sub(r"\s*(?=[A-Z0-9\.\-]*\d)[A-Z0-9\.\-]{6,}\s*$", "", detail).strip()
 
-            parent_idx += 1
-            resumen_items.append({
-                "cantidad": qty,
-                "detalle": detail,
-                "numero_serie": serial,
-                "costo_reposicion": cost,
-                "linea_padre": str(parent_idx),
-                "raw_line": raw,
-            })
+            if not current_group:
+                current_group = detail
+
+            linea_padre += 1
+            try:
+                qty_int = int(qty)
+            except ValueError:
+                qty_int = 0
+
+            current_grp_qty  += qty_int
+            current_grp_cost += cost_val
+
             detalle_items.append({
-                "tipo": "ARTICULO",
-                "linea_padre": str(parent_idx),
-                "cantidad": qty,
-                "detalle": detail,
-                "numero_serie": serial,
-                "costo_reposicion": cost,
-                "raw_line": raw,
+                "grupo":            current_group,
+                "tipo":             "ARTICULO",
+                "linea_padre":      str(linea_padre),
+                "cantidad":         qty,
+                "detalle":          detail,
+                "numero_serie":     serial,
+                "costo_reposicion": f"USD {cost_str}" if cost_str else "",
+                "raw_line":         raw,
             })
-            continue
 
-        if parent_idx > 0:
-            serial = _extract_serial_candidate(line_wo_cost)
-            detail = line_wo_cost
-            if serial:
-                detail = re.sub(r'\s*(?=[A-Z0-9\.\-]*\d)[A-Z0-9\.\-]{6,}\s*$', '', detail).strip()
-            detail = detail.lstrip('.').strip('-').strip()
-            detail = re.sub(r'^\:+', '', detail).strip()
-            if detail:
-                detalle_items.append({
-                    "tipo": "SUBARTICULO",
-                    "linea_padre": str(parent_idx),
-                    "cantidad": "",
-                    "detalle": detail,
-                    "numero_serie": serial,
-                    "costo_reposicion": "",
-                    "raw_line": raw,
-                })
+        else:
+            # ── Sin cantidad inicial ──
+            candidate = re.sub(r"^[:\-\.]+", "", line_wo_cost).strip()
+            if not candidate or len(candidate) < 3:
+                continue
 
-    return resumen_items, detalle_items
+            if not cost_str:
+                # Sin costo => ENCABEZADO DE GRUPO (linea negrita del doc)
+                if candidate != current_group:
+                    flush()
+                    current_group    = candidate
+                    current_grp_qty  = 0
+                    current_grp_cost = 0.0
+            else:
+                # Tiene costo pero no qty => sub-articulo con costo
+                serial = _extract_serial_candidate(line_wo_cost)
+                detail = line_wo_cost
+                if serial:
+                    detail = re.sub(r"\s*(?=[A-Z0-9\.\-]*\d)[A-Z0-9\.\-]{6,}\s*$", "", detail).strip()
+                detail = re.sub(r"^[:\-]+", "", detail).strip()
+                if detail:
+                    current_grp_cost += cost_val
+                    detalle_items.append({
+                        "grupo":            current_group,
+                        "tipo":             "SUBARTICULO",
+                        "linea_padre":      str(linea_padre),
+                        "cantidad":         "",
+                        "detalle":          detail,
+                        "numero_serie":     serial,
+                        "costo_reposicion": f"USD {cost_str}",
+                        "raw_line":         raw,
+                    })
 
-
-# ---------------------------------------------------------------------------
-# Helpers de extracción
-# ---------------------------------------------------------------------------
+    flush()
+    return grupos, detalle_items
 
 def _find_date(text: str) -> str:
     """Busca la primera fecha en el texto."""
